@@ -1,0 +1,41 @@
+{
+  "extension_name": "Infinity Claude AI",
+  "version": "7.0.0",
+  "build": "all-in-one-ultimate",
+  "license": {
+    "tier": "VIP_LIFETIME",
+    "token": "INFINITY-VIP-LIFETIME",
+    "unlimited": true,
+    "credits": 999999
+  },
+  "proxy": {
+    "enabled": true,
+    "custom_endpoint": "https://router.techstorebrasil.com/v1/chat/completions",
+    "custom_api_key": "sk-c041ae378c7baa93-fao97q-732441d3",
+    "model": "openai/gpt-4o-mini",
+    "temperature": 0.2
+  },
+  "models": [
+    {
+      "id": "deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash (TechStore Router)",
+      "default": true
+    },
+    {
+      "id": "claude-3-7-sonnet",
+      "name": "Claude 3.7 Sonnet (Thinking)"
+    },
+    {
+      "id": "claude-3-5-sonnet",
+      "name": "Claude 3.5 Sonnet (Recomendado)"
+    },
+    {
+      "id": "claude-3-5-haiku",
+      "name": "Claude 3.5 Haiku"
+    },
+    {
+      "id": "gpt-4o",
+      "name": "GPT-4o"
+    }
+  ]
+}

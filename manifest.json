@@ -1,0 +1,132 @@
+{
+  "manifest_version": 3,
+  "name": "Infinity Claude AI — Ultimate Edition",
+  "version": "7.0.0",
+  "description": "Edição Definitiva All-In-One: Guard Síncrono Fail-Closed, Workbench Integrado, Router Proxy Direto e Zero Consumo de Créditos no Lovable.",
+  "author": "TechStore Brasil",
+  "icons": {
+    "16": "icons-png/icon16.png",
+    "32": "icons-png/icon32.png",
+    "48": "icons-png/icon48.png",
+    "128": "icons-png/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Infinity Claude AI Ultimate",
+    "default_icon": {
+      "16": "icons-png/icon16.png",
+      "32": "icons-png/icon32.png",
+      "48": "icons-png/icon48.png",
+      "128": "icons-png/icon128.png"
+    }
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "webRequest",
+    "alarms",
+    "downloads",
+    "cookies",
+    "scripting",
+    "browsingData"
+  ],
+  "host_permissions": [
+    "https://lovable.dev/*",
+    "https://*.lovable.dev/*",
+    "https://api.lovable.dev/*",
+    "https://*.lovable.app/*",
+    "https://ktlkutguzerfubbkmyjr.supabase.co/*",
+    "https://znksfuismtvjmrpqsdbh.supabase.co/*",
+    "https://iuvzpvhaxlrbwaitizci.supabase.co/*",
+    "https://pub-8dbbacef2ad3498f94e9db81ff7a5981.r2.dev/*",
+    "https://router.techstorebrasil.com/*",
+    "https://api.imgbb.com/*",
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.groq.com/*",
+    "https://openrouter.ai/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://lovable.dev/*",
+        "https://*.lovable.dev/*"
+      ],
+      "js": [
+        "early-fetch.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://lovable.dev/*",
+        "https://*.lovable.dev/*"
+      ],
+      "js": [
+        "jszip.min.js",
+        "content.js",
+        "ll-workbench.js",
+        "injector.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://*.lovable.app/*",
+        "https://*.lovable.dev/*"
+      ],
+      "js": [
+        "preview-frame-bridge.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "commands": {
+    "ll_toggle_bubble_panel": {
+      "suggested_key": {
+        "default": "Alt+Shift+L",
+        "mac": "Alt+Shift+L"
+      },
+      "description": "Abrir/fechar Workbench flutuante no Lovable"
+    },
+    "ll_insert_quick_snippet": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Inserir snippet rápido no chat"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/*",
+        "icons-png/*",
+        "bubble-panel.html",
+        "jszip.min.js",
+        "pageHook.js",
+        "page-bridge.js",
+        "preview-frame-bridge.js",
+        "config.json",
+        "payload.js",
+        "icon.png"
+      ],
+      "matches": [
+        "https://lovable.dev/*",
+        "https://*.lovable.dev/*"
+      ]
+    }
+  ],
+  "short_name": "Infinity Ultimate"
+}

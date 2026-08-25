@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="heartGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF2D8B"/>
+      <stop offset="50%" stop-color="#8B2DFF"/>
+      <stop offset="100%" stop-color="#00B4FF"/>
+    </radialGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- Heart shape -->
+  <path d="M64 110 C64 110 12 76 12 44 C12 28 24 18 38 18 C50 18 58 26 64 34 C70 26 78 18 90 18 C104 18 116 28 116 44 C116 76 64 110 64 110Z" fill="url(#heartGrad)" filter="url(#glow)" opacity="0.9"/>
+  <!-- Penguin body -->
+  <ellipse cx="64" cy="74" rx="16" ry="20" fill="white"/>
+  <ellipse cx="64" cy="60" rx="18" ry="22" fill="#1a1a2e"/>
+  <!-- Penguin white belly -->
+  <ellipse cx="64" cy="68" rx="10" ry="14" fill="white"/>
+  <!-- Eyes -->
+  <circle cx="58" cy="56" r="3.5" fill="white"/>
+  <circle cx="70" cy="56" r="3.5" fill="white"/>
+  <circle cx="58.8" cy="56" r="2" fill="#1a1a2e"/>
+  <circle cx="70.8" cy="56" r="2" fill="#1a1a2e"/>
+  <!-- Beak -->
+  <path d="M60 62 L68 62 L64 67Z" fill="#FFB800"/>
+  <!-- Feet -->
+  <ellipse cx="56" cy="92" rx="7" ry="4" fill="#FFB800" transform="rotate(-15 56 92)"/>
+  <ellipse cx="72" cy="92" rx="7" ry="4" fill="#FFB800" transform="rotate(15 72 92)"/>
+</svg>

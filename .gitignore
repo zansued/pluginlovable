@@ -1,0 +1,22 @@
+# Dependencies and temporary files
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+
+# Python cache & artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Compressed distribution archives (stored separately)
+*.zip
+*.tar.gz
+*.tgz
+
+# IDE and local configs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace

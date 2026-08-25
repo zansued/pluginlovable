@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infinity Claude AI — All-In-One</title>
+  <style>
+    :root {
+      --bg: #0a0614;
+      --card-bg: rgba(255, 255, 255, 0.04);
+      --card-border: rgba(139, 92, 246, 0.25);
+      --primary: #8b5cf6;
+      --primary-hover: #7c3aed;
+      --primary-light: #c4b5fd;
+      --accent: #10b981;
+      --accent-gold: #f59e0b;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --radius: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      width: 370px;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+      user-select: none;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand img {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+    }
+
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.2px;
+    }
+
+    .badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 3px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 0;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      backdrop-filter: blur(8px);
+    }
+
+    .card-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--primary-light);
+      margin-bottom: 8px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .stat-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 9px;
+      padding: 9px;
+      text-align: center;
+    }
+
+    .stat-val {
+      font-size: 15px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .stat-val.accent {
+      color: var(--accent);
+    }
+
+    .stat-val.gold {
+      color: var(--accent-gold);
+    }
+
+    .stat-lbl {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Progress bar */
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      width: 100%;
+      border-radius: 3px;
+    }
+
+    .field-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+      margin-top: 6px;
+      display: block;
+    }
+
+    select, input[type="text"], input[type="password"] {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    select:focus, input:focus {
+      border-color: var(--primary-light);
+    }
+
+    select option {
+      background: #130924;
+      color: #fff;
+    }
+
+    .btn {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s, transform 0.1s;
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      margin-top: 0;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .status-msg {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--accent);
+      display: none;
+      text-align: center;
+    }
+
+    /* Skills list */
+    .skills-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 240px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .skill-item {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      padding: 8px 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .skill-item:hover {
+      border-color: var(--primary-light);
+      background: rgba(139, 92, 246, 0.12);
+    }
+
+    .skill-info {
+      flex: 1;
+    }
+
+    .skill-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .skill-desc {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .skill-action {
+      font-size: 10px;
+      color: var(--primary-light);
+      font-weight: 600;
+      padding: 3px 6px;
+      background: rgba(139, 92, 246, 0.2);
+      border-radius: 4px;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <img src="icons-png/icon48.png" alt="Icon">
+      <div>
+        <div class="brand-title">Infinity Claude AI</div>
+        <span style="font-size: 10px; color: var(--text-muted);">Edição Completa v7.1</span>
+      </div>
+    </div>
+    <div class="badge">Uso Livre & Ilimitado</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="tab-stats">📊 Economia</button>
+    <button class="tab-btn" data-tab="tab-skills">🧠 Skills</button>
+    <button class="tab-btn" data-tab="tab-router">⚙️ 9Router</button>
+  </div>
+
+  <!-- Tab 1: Stats & Economia -->
+  <div id="tab-stats" class="tab-content active">
+    <div class="card">
+      <div class="card-title">
+        <span>Economia de Recursos</span>
+        <span style="color: var(--accent); font-size: 10px;">● 0 Créditos Lovable</span>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val accent" id="statTokens">0</div>
+          <div class="stat-lbl">Tokens Economizados</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val gold" id="statMoney">R$ 0,00</div>
+          <div class="stat-lbl">Economia Estimada</div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val" id="statPromptsToday">0</div>
+          <div class="stat-lbl">Prompts Hoje</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statTotalPrompts">0</div>
+          <div class="stat-lbl">Total de Prompts</div>
+        </div>
+      </div>
+      <div style="margin-top: 6px;">
+        <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted);">
+          <span>Cota Diária de Proteção</span>
+          <span style="color: var(--accent); font-weight: 600;">100% Ilimitado</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Ações Rápidas</div>
+      <button class="btn btn-secondary" id="deepCleanBtn">
+        ⚡ Limpeza Profunda de Cache
+      </button>
+      <div class="status-msg" id="cleanStatus">Cache e armazenamento limpos!</div>
+    </div>
+  </div>
+
+  <!-- Tab 2: Skills & Prompts -->
+  <div id="tab-skills" class="tab-content">
+    <div class="card">
+      <div class="card-title">Biblioteca de Skills Prontas</div>
+      <div class="skills-list" id="skillsContainer">
+        <!-- Injetado via popup.js -->
+      </div>
+      <div class="status-msg" id="skillStatus">Skill copiada para o chat!</div>
+    </div>
+  </div>
+
+  <!-- Tab 3: Configurações do 9Router -->
+  <div id="tab-router" class="tab-content">
+    <div class="card">
+      <div class="card-title">Configuração do 9Router</div>
+      
+      <label class="field-label">Modelo de IA:</label>
+      <select id="modelSelect">
+        <option value="openai/gpt-4o-mini" selected>🚀 OpenAI GPT-4o Mini (Econômico & 2.1s de Resposta)</option>
+        <option value="openai/gpt-4o">⚡ OpenAI GPT-4o</option>
+        <option value="ag/claude-sonnet-4-6">🧠 Claude Sonnet 4.6 (ag/)</option>
+        <option value="ds/deepseek-v4-flash">⚡ DeepSeek V4 Flash (ds/)</option>
+        <option value="kr/claude-opus-5">👑 Claude Opus 5 (kr/)</option>
+        <option value="gemini/gemini-3.7-flash">✨ Gemini 3.7 Flash</option>
+      </select>
+
+      <label class="field-label">Endpoint do Router:</label>
+      <input type="text" id="routerUrlInput" placeholder="https://router.techstorebrasil.com/v1/chat/completions">
+
+      <label class="field-label">API Key do Router:</label>
+      <input type="password" id="routerApiKeyInput" placeholder="sk-c041ae378c7baa93-fao97q-732441d3">
+
+      <button class="btn" id="saveRouterBtn">Salvar Configurações</button>
+      <div class="status-msg" id="routerStatus">Configurações salvas com sucesso!</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Infinity Claude AI</span>
+    <span style="color: var(--accent); font-weight: 600;">● Proteção Ativa</span>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
