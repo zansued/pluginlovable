@@ -195,6 +195,84 @@ function syncStorageConfig() {
     return "Diagnóstico concluído com sucesso.";
   };
 
+  // ─── Live Context Harvester (Árvore de Arquivos, Arquivo Aberto, Tech Stack) ───
+  function harvestLiveProjectContext() {
+    let contextParts = [];
+
+    // 1. Tech Stack Estrita do Lovable
+    contextParts.push(
+      "### AMBIENTE & STACK TECNOLÓGICA:\n" +
+      "- Framework: Vite + React 18+ (TypeScript SPA).\n" +
+      "- Router: TanStack Router (@tanstack/react-router) ou React Router DOM. (NUNCA USE Next.js, 'next/server' ou 'next/navigation').\n" +
+      "- UI & Estilização: Tailwind CSS, Shadcn UI / Radix UI, Lucide React (lucide-react).\n" +
+      "- Backend & Dados: Supabase JS Client (@supabase/supabase-js) integrado via 'src/integrations/supabase/client'.\n" +
+      "- State Management: TanStack React Query (@tanstack/react-query)."
+    );
+
+    // 2. Arquivo Atualmente Aberto e Conteúdo no Editor (CodeMirror / Monaco)
+    try {
+      let activeFilePath = '';
+      let activeCode = '';
+
+      const cmContent = document.querySelector('.cm-content');
+      if (cmContent) {
+        activeCode = (cmContent.innerText || cmContent.textContent || '').trim();
+      }
+
+      const activeTab = document.querySelector('[data-state="active"][role="tab"], div[class*="active"][class*="file"], div[aria-selected="true"]');
+      if (activeTab) {
+        activeFilePath = (activeTab.textContent || '').trim();
+      }
+
+      if (window.monaco && window.monaco.editor) {
+        const models = window.monaco.editor.getModels();
+        if (models && models.length > 0) {
+          const activeModel = models[0];
+          if (activeModel) {
+            activeFilePath = activeModel.uri.path.replace(/^\//, '');
+            activeCode = activeModel.getValue();
+          }
+        }
+      }
+
+      if (activeFilePath || activeCode) {
+        contextParts.push(
+          `### ARQUIVO ATUALMENTE EM FOCO NO EDITOR:\n` +
+          `Caminho: ${activeFilePath || 'src/components/App.tsx'}\n` +
+          (activeCode ? `Código Atual:\n\`\`\`typescript\n${activeCode.slice(0, 3500)}\n\`\`\`` : '')
+        );
+      }
+    } catch (_) {}
+
+    // 3. Estrutura de Arquivos Visíveis na Barra Lateral
+    try {
+      const allTextNodes = document.querySelectorAll('div, span, button, li');
+      const fileNames = new Set();
+      allTextNodes.forEach((el) => {
+        if (el.children.length === 0) {
+          const text = (el.textContent || '').trim();
+          if (text && (text.endsWith('.tsx') || text.endsWith('.ts') || text.endsWith('.css') || text.endsWith('.sql') || text.endsWith('.json'))) {
+            fileNames.add(text);
+          }
+        }
+      });
+
+      if (fileNames.size > 0) {
+        contextParts.push(`### ARQUIVOS DETECTADOS NO PROJETO:\n- ${Array.from(fileNames).join('\n- ')}`);
+      }
+    } catch (_) {}
+
+    // 4. Instruções Customizadas salvas no Workspace
+    try {
+      const savedRules = localStorage.getItem("ll_improve_context") || localStorage.getItem("infinity_project_rules");
+      if (savedRules && savedRules.trim().length > 10) {
+        contextParts.push(`### REGRAS E DIRETRIZES DO PROJETO:\n${savedRules.trim()}`);
+      }
+    } catch (_) {}
+
+    return contextParts.join("\n\n");
+  }
+
   // ─── Chat Hijack Handler (100% Fail-Closed + Live SSE Stream) ─────────────
   async function handleAiChatHijack(url, input, init) {
     const startTime = performance.now();
@@ -254,12 +332,15 @@ function syncStorageConfig() {
     const requestId = "inf_req_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
     const eventName = `__INFINITY_STREAM_CHUNK_${requestId}`;
 
+    const liveContext = harvestLiveProjectContext();
+
     const universalSystemPrompt = "Você é o engenheiro de software sênior Full Stack especialista em aplicações Lovable (React, TypeScript, Vite, Tailwind CSS, Lucide Icons, Shadcn UI, TanStack Router / React Router, Supabase).\n\n" +
       "DIRETRIZES FUNDAMENTAIS:\n" +
-      "1. Forneça sempre o código COMPLETO, limpo e funcional do arquivo com o comentário de caminho no topo (ex: `// src/components/...` ou `// src/routes/...`), pronto para substituição direta.\n" +
-      "2. Utilize apenas bibliotecas e APIs compatíveis com o ambiente do navegador (Browser / Client-side). NUNCA importe módulos nativos do Node.js (como `@tensorflow/tfjs-node`, `fs`, `path`, etc.) em componentes React/Vite.\n" +
-      "3. Adicione sempre tratamento defensivo (try/catch, checagens condicionais e fallbacks visuais elegantes) para recursos assíncronos, chamadas de API ou modelos neurais/visão.\n" +
-      "4. Mantenha o design refinado com Glassmorphism, Tailwind CSS, tipografia moderna e micro-interações fluidas.";
+      "1. Forneça sempre o código COMPLETO, limpo e funcional do arquivo com o comentário de caminho exato no topo (ex: `// src/components/ClinicalReport.tsx` ou `// src/routes/webhook.ts`), pronto para substituição direta.\n" +
+      "2. Utilize APENAS bibliotecas e APIs compatíveis com Vite + React (Client-side / Browser). NUNCA importe 'next/server', 'next/navigation', ou módulos nativos do Node.js (como 'fs', 'path', 'crypto' do Node) em componentes React/Vite.\n" +
+      "3. Para requisições de API e banco de dados, utilize a integração nativa com o Supabase JS Client (`@supabase/supabase-js`) ou `fetch` padrão.\n" +
+      "4. Mantenha o design impecável com Glassmorphism refinado, paleta Tailwind moderna, Dark Mode e micro-interações fluidas.\n\n" +
+      (liveContext ? `=== CONTEXTO EM TEMPO REAL DO PROJETO ===\n${liveContext}\n========================================` : '');
 
     let outboundMessages = [];
     if (parsedBody && Array.isArray(parsedBody.messages) && parsedBody.messages.length > 0) {
