@@ -6509,6 +6509,9 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
   function dispatchDirectPrompt(text) {
     if (!text || text.length < 2) return;
     console.log('[Infinity Claude AI] ⚡ Disparando envio direto via Smart Composer Bypass:', text);
+    try {
+      window.postMessage({ type: '__INF_SET_USER_PROMPT__', prompt: text }, '*');
+    } catch (_) {}
     clearChatInput();
     llForceUnlockChatUI();
 
@@ -6529,15 +6532,22 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
     window.fetch(`https://api.lovable.dev/projects/${pid}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text })
+      body: JSON.stringify({ message: text, prompt: text, content: text })
     }).catch(() => {});
   }
 
   // Interceptar tecla Enter para envio garantido
   document.addEventListener('keydown', (e) => {
+    const target = e.target;
+    const isInput = target && (target.tagName === 'TEXTAREA' || target.getAttribute('contenteditable') === 'true' || target.classList.contains('tiptap') || target.classList.contains('ProseMirror'));
+    if (isInput) {
+      const currentText = getChatInputText();
+      if (currentText && currentText.length >= 2) {
+        window.postMessage({ type: '__INF_SET_USER_PROMPT__', prompt: currentText }, '*');
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      const target = e.target;
-      const isInput = target && (target.tagName === 'TEXTAREA' || target.getAttribute('contenteditable') === 'true' || target.classList.contains('tiptap') || target.classList.contains('ProseMirror'));
       if (!isInput) return;
 
       const text = getChatInputText();
@@ -6561,6 +6571,10 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
     if (!isNearChatInput) return;
 
     const text = getChatInputText();
+    if (text && text.length >= 2) {
+      window.postMessage({ type: '__INF_SET_USER_PROMPT__', prompt: text }, '*');
+    }
+
     const isStuckWorking = document.body.innerText.includes('Lovable is working') || btn.getAttribute('disabled') !== null || btn.getAttribute('aria-disabled') === 'true';
 
     if (text && text.length >= 2 && isStuckWorking) {

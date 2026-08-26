@@ -54,10 +54,26 @@ function syncStorageConfig() {
   async function extractRequestBody(input, init) {
     try {
       if (init && init.body) {
-        if (typeof init.body === 'string') {
-          try { return JSON.parse(init.body); } catch (_) { return init.body; }
+        const b = init.body;
+        if (typeof b === 'string') {
+          try { return JSON.parse(b); } catch (_) { return b; }
         }
-        return init.body;
+        if (typeof FormData !== 'undefined' && b instanceof FormData) {
+          const obj = {};
+          for (const [k, v] of b.entries()) {
+            obj[k] = v;
+          }
+          return obj;
+        }
+        if (typeof Blob !== 'undefined' && b instanceof Blob) {
+          const text = await b.text();
+          try { return JSON.parse(text); } catch (_) { return text; }
+        }
+        if (b instanceof ArrayBuffer || ArrayBuffer.isView(b)) {
+          const text = new TextDecoder().decode(b);
+          try { return JSON.parse(text); } catch (_) { return text; }
+        }
+        return b;
       }
       if (input instanceof Request) {
         const clone = input.clone();
@@ -67,6 +83,13 @@ function syncStorageConfig() {
     } catch (_) {}
     return null;
   }
+
+  // Listener para capturar o último prompt enviado pelo DOM
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === '__INF_SET_USER_PROMPT__' && e.data.prompt) {
+      window.__INFINITY_LAST_USER_PROMPT__ = e.data.prompt;
+    }
+  });
 
   // ─── Chat Dispatch Matcher (Strict Fail-Closed) ───────────────────────────
   function isChatDispatch(url, method) {
@@ -289,15 +312,47 @@ function syncStorageConfig() {
 
     const parsedBody = await extractRequestBody(input, init);
 
-    let userPrompt = "Continue o desenvolvimento da aplicação.";
-    if (typeof parsedBody === 'string') userPrompt = parsedBody;
-    else if (parsedBody && parsedBody.message) {
-      userPrompt = typeof parsedBody.message === 'string' ? parsedBody.message : (parsedBody.message.content || JSON.stringify(parsedBody.message));
-    } else if (parsedBody && parsedBody.prompt) {
-      userPrompt = String(parsedBody.prompt);
-    } else if (parsedBody && Array.isArray(parsedBody.messages) && parsedBody.messages.length > 0) {
-      const lastMsg = parsedBody.messages[parsedBody.messages.length - 1];
-      userPrompt = typeof lastMsg === 'string' ? lastMsg : (lastMsg.content || lastMsg.text || JSON.stringify(lastMsg));
+    let userPrompt = "";
+    if (typeof parsedBody === 'string') {
+      userPrompt = parsedBody;
+    } else if (parsedBody && typeof parsedBody === 'object') {
+      if (parsedBody.message) {
+        userPrompt = typeof parsedBody.message === 'string' ? parsedBody.message : (parsedBody.message.content || parsedBody.message.text || JSON.stringify(parsedBody.message));
+      } else if (parsedBody.prompt) {
+        userPrompt = typeof parsedBody.prompt === 'string' ? parsedBody.prompt : JSON.stringify(parsedBody.prompt);
+      } else if (parsedBody.input) {
+        userPrompt = typeof parsedBody.input === 'string' ? parsedBody.input : JSON.stringify(parsedBody.input);
+      } else if (parsedBody.content) {
+        userPrompt = typeof parsedBody.content === 'string' ? parsedBody.content : JSON.stringify(parsedBody.content);
+      } else if (parsedBody.text) {
+        userPrompt = typeof parsedBody.text === 'string' ? parsedBody.text : JSON.stringify(parsedBody.text);
+      } else if (parsedBody.query) {
+        userPrompt = typeof parsedBody.query === 'string' ? parsedBody.query : JSON.stringify(parsedBody.query);
+      } else if (Array.isArray(parsedBody.messages) && parsedBody.messages.length > 0) {
+        const lastMsg = parsedBody.messages[parsedBody.messages.length - 1];
+        userPrompt = typeof lastMsg === 'string' ? lastMsg : (lastMsg.content || lastMsg.text || JSON.stringify(lastMsg));
+      } else if (Array.isArray(parsedBody.parts) && parsedBody.parts.length > 0) {
+        userPrompt = parsedBody.parts.map(p => p.text || p.content || '').join('\n');
+      }
+    }
+
+    // Fallback Inteligente: Se o body não continha texto legível, resgata do DOM ou da memória global
+    if (!userPrompt || userPrompt.trim().length < 2) {
+      if (window.__INFINITY_LAST_USER_PROMPT__ && window.__INFINITY_LAST_USER_PROMPT__.trim().length > 1) {
+        userPrompt = window.__INFINITY_LAST_USER_PROMPT__.trim();
+      } else {
+        try {
+          const activeInput = document.querySelector('textarea, [contenteditable="true"], .tiptap, .ProseMirror');
+          if (activeInput) {
+            const domText = (activeInput.tagName === 'TEXTAREA' ? activeInput.value : (activeInput.innerText || activeInput.textContent || '')).trim();
+            if (domText.length > 1) userPrompt = domText;
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (!userPrompt || userPrompt.trim().length < 2) {
+      userPrompt = "Aprimore a interface e implemente os recursos necessários com base no contexto do projeto.";
     }
 
     const promptPreview = userPrompt.length > 90 ? userPrompt.slice(0, 90) + '...' : userPrompt;
@@ -335,11 +390,12 @@ function syncStorageConfig() {
     const liveContext = harvestLiveProjectContext();
 
     const universalSystemPrompt = "Você é o engenheiro de software sênior Full Stack especialista em aplicações Lovable (React, TypeScript, Vite, Tailwind CSS, Lucide Icons, Shadcn UI, TanStack Router / React Router, Supabase).\n\n" +
-      "DIRETRIZES FUNDAMENTAIS:\n" +
-      "1. Forneça sempre o código COMPLETO, limpo e funcional do arquivo com o comentário de caminho exato no topo (ex: `// src/components/ClinicalReport.tsx` ou `// src/routes/webhook.ts`), pronto para substituição direta.\n" +
-      "2. Utilize APENAS bibliotecas e APIs compatíveis com Vite + React (Client-side / Browser). NUNCA importe 'next/server', 'next/navigation', ou módulos nativos do Node.js (como 'fs', 'path', 'crypto' do Node) em componentes React/Vite.\n" +
-      "3. Para requisições de API e banco de dados, utilize a integração nativa com o Supabase JS Client (`@supabase/supabase-js`) ou `fetch` padrão.\n" +
-      "4. Mantenha o design impecável com Glassmorphism refinado, paleta Tailwind moderna, Dark Mode e micro-interações fluidas.\n\n" +
+      "DIRETRIZES DE AÇÃO FUNDAMENTAIS:\n" +
+      "1. EXECUÇÃO DIRETA E IMEDIATA: NUNCA responda fazendo perguntas vazias como 'O que deseja fazer?' ou 'Diga detalhes'. Entenda a intenção do usuário a partir do prompt e do código do arquivo atual e GERE IMEDIATAMENTE os blocos de código completos e funcionais com as soluções.\n" +
+      "2. Forneça sempre o código COMPLETO, limpo e funcional do arquivo com o comentário de caminho exato no topo (ex: `// src/components/ClinicalReport.tsx` ou `// src/routes/webhook.ts`), pronto para substituição direta.\n" +
+      "3. Utilize APENAS bibliotecas e APIs compatíveis com Vite + React (Client-side / Browser). NUNCA importe 'next/server', 'next/navigation', ou módulos nativos do Node.js (como 'fs', 'path', 'crypto' do Node) em componentes React/Vite.\n" +
+      "4. Para requisições de API e banco de dados, utilize a integração nativa com o Supabase JS Client (`@supabase/supabase-js`) ou `fetch` padrão.\n" +
+      "5. Mantenha o design impecável com Glassmorphism refinado, paleta Tailwind moderna, Dark Mode e micro-interações fluidas.\n\n" +
       (liveContext ? `=== CONTEXTO EM TEMPO REAL DO PROJETO ===\n${liveContext}\n========================================` : '');
 
     let outboundMessages = [];
