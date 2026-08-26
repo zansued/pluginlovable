@@ -6408,10 +6408,11 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
     }
     console.groupEnd();
 
-    // 1. INJETAR DIRETAMENTE NA CAIXA DE TEXTO / INPUT ONDE O USUÁRIO ENVIA MENSAGEM
-    injectTextIntoChatInput(text);
+    // 1. Limpar e reabilitar a caixa de mensagem para o próximo prompt do usuário
+    clearChatInput();
+    llForceUnlockChatUI();
 
-    // 2. Renderizar também na timeline do chat
+    // 2. Renderizar na linha do tempo do chat com visual Infinity Claude AI
     injectMessageIntoChatDOM(text, model, blocks);
 
     // 3. AUTO-INJECT DIRETO: Injetar e salvar todos os arquivos gerados automaticamente no editor
@@ -6506,9 +6507,14 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
     return (m && m[1]) || 'a3684235-1782-4a8a-94d4-41deb8cb035b';
   }
 
+  function isGeneratedAssistantText(txt) {
+    if (!txt) return false;
+    return txt.includes('```') || txt.includes('// src/') || txt.includes('### 1.') || txt.includes('### 2.');
+  }
+
   function dispatchDirectPrompt(text) {
-    if (!text || text.length < 2) return;
-    console.log('[Infinity Claude AI] ⚡ Disparando envio direto via Smart Composer Bypass:', text);
+    if (!text || text.length < 2 || isGeneratedAssistantText(text)) return;
+    console.log('[Infinity Claude AI] ⚡ Disparando envio direto via Smart Composer Bypass:', text.slice(0, 80));
     try {
       window.postMessage({ type: '__INF_SET_USER_PROMPT__', prompt: text }, '*');
     } catch (_) {}
@@ -6529,9 +6535,14 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
     } catch (_) {}
 
     const pid = detectCurrentProjectId();
+    const headers = { 'Content-Type': 'application/json' };
+    if (window.__INFINITY_CAPTURED_TOKEN__) {
+      headers['Authorization'] = `Bearer ${window.__INFINITY_CAPTURED_TOKEN__}`;
+    }
+
     window.fetch(`https://api.lovable.dev/projects/${pid}/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ message: text, prompt: text, content: text })
     }).catch(() => {});
   }
