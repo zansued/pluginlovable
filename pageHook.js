@@ -81,14 +81,10 @@ window.addEventListener("message", (event)=>{
 // ─── Direct Monaco Editor & Vite Live Injector Bridge ───────────────────────
 function tryOpenCodeView() {
   try {
-    const buttons = document.querySelectorAll('button, [role="tab"]');
-    for (const b of buttons) {
-      const text = (b.textContent || '').trim().toLowerCase();
-      const aria = (b.getAttribute('aria-label') || '').toLowerCase();
-      if (text === 'code' || text === 'código' || aria.includes('code') || aria.includes('código') || b.querySelector('svg.lucide-code')) {
-        b.click();
-        return true;
-      }
+    const codeTab = document.querySelector('button[value="codeEditor"], button[data-value="codeEditor"], [role="tab"][aria-label*="Code"], [role="tab"][data-state="inactive"]:has(svg.lucide-code)');
+    if (codeTab && !codeTab.disabled) {
+      codeTab.click();
+      return true;
     }
   } catch (_) {}
   return false;
