@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Nexus PRO",
+  "version": "20.6.1",
+  "author": "Nexus Pro",
+  "homepage_url": "https://nexxus-pro.online",
+  "description": "Nexus PRO — extensão desenvolvida para Lovable.",
+  "icons": { "16": "icon.png", "48": "icon.png", "128": "icon.png" },
+  "permissions": ["storage", "browsingData"],
+  "background": { "service_worker": "background.js" },
+  "host_permissions": [
+    "https://lovable.dev/*",
+    "https://*.lovable.dev/*"
+  ],
+  "content_scripts": [{
+    "matches": [
+      "https://lovable.dev/*",
+      "https://*.lovable.dev/*"
+    ],
+    "js": ["content.js"],
+    "run_at": "document_start",
+    "all_frames": true
+  }],
+  "web_accessible_resources": [{
+    "resources": ["payload.js", "icon.png"],
+    "matches": [
+      "https://lovable.dev/*",
+      "https://*.lovable.dev/*"
+    ]
+  }]
+}

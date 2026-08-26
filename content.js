@@ -6009,76 +6009,183 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
     } catch (_) {}
   }
 
-  // ─── Infinity Code & Database Inspector Card ─────────────────────────────────
-  
   // ─── Direct Lovable Chat DOM Injector ─────────────────────────────────────
-  function injectMessageIntoChatDOM(text, model, blocks) {
+  function findLovableChatContainer() {
     try {
-      // Find chat container
-      const chatContainers = document.querySelectorAll(
-        '[data-chat-container], [data-timeline], .chat-messages, [role="log"], main div.flex-1.overflow-y-auto, div.overflow-y-auto'
-      );
-      
-      let targetContainer = null;
-      for (const c of chatContainers) {
-        if (c.scrollHeight > 100 && c.querySelector('div, p, span')) {
-          targetContainer = c;
-          break;
+      const inputEl = document.querySelector('textarea, [contenteditable="true"], .tiptap, .ProseMirror, [data-chat-input]');
+      if (inputEl) {
+        // Tenta achar dentro do mesmo painel do input
+        const panel = inputEl.closest('aside, [data-panel], form, div.flex-col.h-full, div.h-screen, div[class*="sidebar"]') || document.body;
+        const candidate = panel.querySelector('[data-radix-scroll-area-viewport], [data-chat-container], [data-timeline], [role="log"], div.overflow-y-auto:not(.monaco-scrollable-element)');
+        if (candidate) return candidate;
+
+        // Se o próprio pai ou irmão for scrollable
+        let parent = inputEl.parentElement;
+        while (parent && parent !== document.body) {
+          const scrollableChild = parent.querySelector('[data-radix-scroll-area-viewport], .overflow-y-auto, [role="log"]');
+          if (scrollableChild && !scrollableChild.closest('.monaco-editor')) {
+            return scrollableChild;
+          }
+          parent = parent.parentElement;
         }
       }
-      if (!targetContainer && chatContainers.length > 0) {
-        targetContainer = chatContainers[0];
+
+      // Busca global por seletores comuns do Lovable
+      const candidates = document.querySelectorAll(
+        '[data-radix-scroll-area-viewport], [data-chat-container], [data-timeline], [role="log"], main div.flex-1.overflow-y-auto, div.overflow-y-auto'
+      );
+      for (const c of candidates) {
+        if (!c.closest('.monaco-editor') && !c.classList.contains('monaco-scrollable-element')) {
+          return c;
+        }
       }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function formatMarkdownResponse(text) {
+    if (!text) return '';
+    let html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // Code blocks with copy and inject buttons
+    let blockCounter = 0;
+    html = html.replace(/```([a-zA-Z0-9_.-]*)\n([\s\S]*?)```/g, function(_, lang, code) {
+      blockCounter++;
+      const codeId = `inf-code-snippet-${Date.now()}-${blockCounter}`;
+      window[`__code_${codeId}`] = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+      return `
+        <div style="margin: 12px 0; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 8px; overflow: hidden; background: #090d16;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: rgba(30, 41, 59, 0.7); border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 11px;">
+            <span style="color: #94a3b8; font-weight: 600; text-transform: uppercase;">${lang || 'code'}</span>
+            <div style="display: flex; gap: 6px;">
+              <button class="infinity-bubble-btn-copy" data-id="${codeId}" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: #cbd5e1; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">📋 Copiar</button>
+              <button class="infinity-bubble-btn-inject" data-id="${codeId}" style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 600;">⚡ Injetar</button>
+            </div>
+          </div>
+          <pre style="margin: 0; padding: 12px; overflow-x: auto; color: #38bdf8; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.5;"><code>${code}</code></pre>
+        </div>
+      `;
+    });
+
+    // Headers
+    html = html.replace(/^### (.*$)/gim, '<h3 style="color:#f8fafc;font-size:14px;font-weight:700;margin:10px 0 4px;">$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2 style="color:#f8fafc;font-size:15px;font-weight:700;margin:12px 0 6px;">$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1 style="color:#f8fafc;font-size:16px;font-weight:800;margin:14px 0 8px;">$1</h1>');
+
+    // Inline bold & code
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#f8fafc;font-weight:600;">$1</strong>');
+    html = html.replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.1);color:#38bdf8;padding:1px 5px;border-radius:4px;font-size:11px;">$1</code>');
+
+    // Bullet points
+    html = html.replace(/^\s*[-*]\s+(.*$)/gim, '<li style="margin-left:16px;list-style-type:disc;color:#cbd5e1;">$1</li>');
+    html = html.replace(/^\s*(\d+)\.\s+(.*$)/gim, '<li style="margin-left:16px;list-style-type:decimal;color:#cbd5e1;">$1</li>');
+
+    // Line breaks
+    html = html.replace(/\n\n/g, '<div style="height:8px;"></div>');
+    html = html.replace(/\n/g, '<br/>');
+
+    return html;
+  }
+
+  function injectMessageIntoChatDOM(text, model, blocks) {
+    try {
+      const targetContainer = findLovableChatContainer();
+      const formattedHtml = formatMarkdownResponse(text);
+
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'infinity-native-chat-response';
+      msgDiv.style.cssText = `
+        margin: 16px 8px;
+        padding: 16px;
+        background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 27, 75, 0.9));
+        border: 1px solid rgba(139, 92, 246, 0.45);
+        border-radius: 12px;
+        color: #f1f5f9;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
+        line-height: 1.6;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(12px);
+        position: relative;
+        z-index: 10;
+        animation: infinityFadeIn 0.3s ease-out;
+      `;
+
+      msgDiv.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:#10b981; box-shadow:0 0 10px #10b981;"></span>
+            <span style="font-weight:700; color:#c4b5fd; font-size:12px;">Infinity Claude AI</span>
+            <span style="background:rgba(124,58,237,0.3); border:1px solid rgba(124,58,237,0.5); color:#ddd6fe; padding:1px 6px; border-radius:4px; font-size:10px;">${model || '9Router'}</span>
+          </div>
+          <span style="color:#10b981; font-size:11px; font-weight:600; background:rgba(16,185,129,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(16,185,129,0.2);">0 Créditos Lovable</span>
+        </div>
+        <div style="word-break:break-word;">${formattedHtml}</div>
+      `;
+
+      // Eventos dos botões de copiar e injetar do balão
+      msgDiv.querySelectorAll('.infinity-bubble-btn-copy').forEach((btn) => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute('data-id');
+          const code = window[`__code_${id}`];
+          if (code) {
+            try {
+              const ta = document.createElement('textarea');
+              ta.value = code;
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              ta.remove();
+            } catch (_) {}
+            btn.innerText = '✅ Copiado!';
+            setTimeout(() => { btn.innerText = '📋 Copiar'; }, 2000);
+          }
+        };
+      });
+
+      msgDiv.querySelectorAll('.infinity-bubble-btn-inject').forEach((btn) => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute('data-id');
+          const code = window[`__code_${id}`];
+          if (code) {
+            window.postMessage({
+              type: '__INFINITY_APPLY_CODE_TO_EDITOR__',
+              code: code,
+              path: (blocks && blocks[0] && blocks[0].path) || 'src/components/App.tsx'
+            }, '*');
+            btn.innerText = '⚡ Injetado!';
+            setTimeout(() => { btn.innerText = '⚡ Injetar'; }, 2000);
+          }
+        };
+      });
 
       if (targetContainer) {
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'infinity-native-chat-response';
-        msgDiv.style.cssText = `
-          margin: 16px 0;
-          padding: 16px;
-          background: rgba(15, 23, 42, 0.85);
-          border: 1px solid rgba(139, 92, 246, 0.4);
-          border-radius: 12px;
-          color: #f1f5f9;
-          font-family: system-ui, -apple-system, sans-serif;
-          font-size: 13px;
-          line-height: 1.6;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-          backdrop-filter: blur(8px);
-        `;
-
-        // Format code blocks
-        let formattedText = text
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/```([a-zA-Z0-9_.-]*)\n([\s\S]*?)```/g, function(match, p1, p2) {
-            return `<pre style="background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.1);padding:12px;border-radius:8px;overflow-x:auto;margin:10px 0;color:#38bdf8;font-family:monospace;font-size:12px;"><code>${p2}</code></pre>`;
-          })
-          .replace(/\n/g, '<br/>');
-
-        msgDiv.innerHTML = `
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">
-            <div style="display:flex; align-items:center; gap:6px;">
-              <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981; box-shadow:0 0 8px #10b981;"></span>
-              <span style="font-weight:700; color:#c4b5fd;">Infinity Claude AI:</span>
-              <span style="background:rgba(124,58,237,0.3); color:#c4b5fd; padding:1px 6px; border-radius:4px; font-size:10px;">${model || 'gpt-4o-mini'}</span>
-            </div>
-            <span style="color:#64748b; font-size:11px;">0 Créditos Lovable</span>
-          </div>
-          <div>${formattedText}</div>
-        `;
-
         targetContainer.appendChild(msgDiv);
         targetContainer.scrollTop = targetContainer.scrollHeight;
         console.log("[Infinity Claude AI] 💬 Resposta renderizada visualmente no chat do Lovable!");
+      } else {
+        // Fallback: anexa no topo do input do chat
+        const inputEl = document.querySelector('textarea, [contenteditable="true"], .tiptap, .ProseMirror');
+        if (inputEl && inputEl.parentElement) {
+          inputEl.parentElement.insertAdjacentElement('beforebegin', msgDiv);
+          console.log("[Infinity Claude AI] 💬 Resposta anexada acima da caixa de mensagem!");
+        } else {
+          document.body.appendChild(msgDiv);
+        }
       }
     } catch (e) {
       console.warn("[Infinity Claude AI] Aviso ao renderizar no chat:", e);
     }
   }
 
-function renderInfinityInspectorDashboard(blocks, fullText, model) {
+  function renderInfinityInspectorDashboard(blocks, fullText, model) {
     let panel = document.getElementById('infinity-inspector-panel');
     if (panel) panel.remove();
 
@@ -6089,103 +6196,134 @@ function renderInfinityInspectorDashboard(blocks, fullText, model) {
       bottom: 24px;
       left: 50%;
       transform: translateX(-50%);
-      z-index: 9999999;
+      width: min(94vw, 760px);
+      max-height: 85vh;
+      background: rgba(10, 15, 29, 0.96);
+      border: 1px solid rgba(139, 92, 246, 0.5);
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(124, 58, 237, 0.2);
+      backdrop-filter: blur(16px);
+      color: #f1f5f9;
+      font-family: system-ui, -apple-system, sans-serif;
+      z-index: 999999;
       display: flex;
       flex-direction: column;
-      background: rgba(15, 23, 42, 0.96);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(139, 92, 246, 0.6);
-      box-shadow: 0 15px 50px rgba(0, 0, 0, 0.7), 0 0 25px rgba(124, 58, 237, 0.35);
-      border-radius: 16px;
-      padding: 12px 20px;
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 13px;
-      color: #f1f5f9;
-      max-width: 650px;
-      width: calc(100vw - 48px);
-      animation: llSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+      animation: infinityPanelSlideUp 0.3s ease-out;
     `;
 
-    // Aggregate DB Tables
-    const allDbTables = [...new Set(blocks.flatMap(b => b.dbCalls || []))];
-    const totalLines = blocks.reduce((acc, b) => acc + (b.lines || 0), 0);
-
-    let filesHtml = blocks.map((b, idx) => `
-      <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); margin-top:6px;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="color:#a78bfa; font-weight:700;">📄 ${b.path}</span>
-          <span style="color:#64748b; font-size:11px;">(${b.lines} linhas)</span>
+    const fileListHtml = blocks.map((b, idx) => `
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 14px;">📄</span>
+            <span style="font-weight: 700; color: #38bdf8; font-size: 13px;">${b.path}</span>
+            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 1px 6px; border-radius: 4px; font-size: 10px;">${b.lang}</span>
+            <span style="color: #64748b; font-size: 11px;">(${b.lines} linhas)</span>
+          </div>
+          <button class="infinity-btn-inject-single" data-idx="${idx}" style="background: #10b981; border: none; color: white; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+            <span>⚡</span> Aplicar no Editor
+          </button>
         </div>
-        <button class="infinity-btn-inject-single" data-idx="${idx}" style="background:rgba(124,58,237,0.3); border:1px solid rgba(124,58,237,0.6); color:#c4b5fd; border-radius:6px; padding:3px 10px; font-size:11px; cursor:pointer; font-weight:600;">
-          ⚡ Injetar
-        </button>
+        ${(b.dbCalls && b.dbCalls.length > 0) ? `
+          <div style="font-size: 11px; color: #a78bfa; margin-top: 4px; display: flex; gap: 6px; align-items: center;">
+            <span>🗄️ Tabelas Supabase:</span>
+            <span style="background: rgba(167, 139, 250, 0.15); padding: 1px 6px; border-radius: 4px; color: #c4b5fd;">${b.dbCalls.join(', ')}</span>
+          </div>
+        ` : ''}
       </div>
     `).join('');
 
-    let dbBadgeHtml = allDbTables.length > 0
-      ? `<div style="margin-top:8px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); padding:6px 12px; border-radius:8px;">
-          <span style="font-weight:700; color:#34d399;">🗄️ Tabelas de Banco Afetadas (${allDbTables.length}):</span>
-          ${allDbTables.map(t => `<span style="background:rgba(16,185,129,0.25); color:#a7f3d0; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700;">${t}</span>`).join(' ')}
-         </div>`
-      : `<div style="margin-top:6px; color:#94a3b8; font-size:12px;">🗄️ Nenhuma chamada direta ao banco detectada neste bloco.</div>`;
-
     panel.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:#10b981; box-shadow:0 0 10px #10b981;"></span>
-          <span style="font-weight:800; color:#c4b5fd; font-size:14px;">Infinity Inspector:</span>
-          <span style="color:#38bdf8; font-weight:700;">${blocks.length} Arquivo(s) Gerados</span>
-          <span style="background:rgba(124,58,237,0.3); color:#c4b5fd; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:700;">${model || '9Router'}</span>
+      <div style="padding: 14px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.8);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #7c3aed, #4f46e5); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;">⚡</div>
+          <div>
+            <div style="font-weight: 700; font-size: 14px; color: #fff;">Infinity Inspector & Arquivos Gerados</div>
+            <div style="font-size: 11px; color: #94a3b8;">${blocks.length} arquivo(s) gerados via ${model || '9Router'} (0 Créditos Lovable)</div>
+          </div>
         </div>
-        <button id="infinity-panel-close" style="background:transparent; color:#94a3b8; border:none; font-size:16px; cursor:pointer; padding:0 4px;">✕</button>
+        <button id="infinity-panel-close" style="background: rgba(255,255,255,0.06); border: none; color: #94a3b8; width: 26px; height: 26px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕</button>
+      </div>
+      
+      <div style="padding: 14px 18px; overflow-y: auto; flex: 1;">
+        <div style="margin-bottom: 10px; font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Arquivos Prontos para Injeção</div>
+        ${fileListHtml}
       </div>
 
-      <div style="margin-top:8px;">
-        <div style="font-weight:700; color:#e2e8f0; margin-bottom:4px;">📁 Arquivos que o Lovable vai alterar (${totalLines} linhas de código):</div>
-        ${filesHtml}
-      </div>
-
-      ${dbBadgeHtml}
-
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px;">
-        <button id="infinity-btn-copy-all" style="background:rgba(255,255,255,0.1); color:#cbd5e1; border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer;">
-          📋 Copiar Tudo
+      <div style="padding: 12px 18px; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(15, 23, 42, 0.9); display: flex; justify-content: flex-end; gap: 8px;">
+        <button id="infinity-btn-copy-all" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #f1f5f9; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;">
+          📋 Copiar Código Completo
         </button>
-        <button id="infinity-btn-inject-all" style="background:linear-gradient(135deg, #7c3aed, #4f46e5); color:#fff; border:none; border-radius:8px; padding:6px 16px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 4px 15px rgba(124,58,237,0.4);">
+        <button id="infinity-btn-inject-all" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); border: none; color: white; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);">
           ⚡ Injetar Tudo no Editor
         </button>
       </div>
     `;
 
+    function infinitySafeCopy(text) {
+      try {
+        if (!text) return;
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function' && document.hasFocus && document.hasFocus()) {
+          navigator.clipboard.writeText(text).catch(() => infinityFallbackCopy(text));
+        } else {
+          infinityFallbackCopy(text);
+        }
+      } catch (_) {
+        infinityFallbackCopy(text);
+      }
+    }
+
+    function infinityFallbackCopy(text) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.top = '-9999px';
+        ta.style.left = '-9999px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      } catch (_) {}
+    }
+
     document.body.appendChild(panel);
 
-    // Bind events
-    document.getElementById('infinity-panel-close').onclick = () => panel.remove();
+    // Bind events com verificação segura
+    const closeBtn = panel.querySelector('#infinity-panel-close');
+    if (closeBtn) closeBtn.onclick = () => panel.remove();
 
-    document.getElementById('infinity-btn-copy-all').onclick = () => {
-      navigator.clipboard.writeText(fullText);
-      infinityShowToast('📋', 'Todos os arquivos copiados para a área de transferência!', 2500);
-    };
+    const copyAllBtn = panel.querySelector('#infinity-btn-copy-all');
+    if (copyAllBtn) {
+      copyAllBtn.onclick = () => {
+        infinitySafeCopy(fullText);
+        infinityShowToast('📋', 'Todos os arquivos copiados para a área de transferência!', 2500);
+      };
+    }
 
-    document.getElementById('infinity-btn-inject-all').onclick = () => {
-      blocks.forEach((b) => {
-        window.postMessage({
-          type: '__INFINITY_APPLY_CODE_TO_EDITOR__',
-          code: b.code,
-          path: b.path
-        }, '*');
-      });
-      infinityShowToast('⚡', `${blocks.length} arquivo(s) injetados no editor com sucesso!`, 3500);
-    };
+    const injectAllBtn = panel.querySelector('#infinity-btn-inject-all');
+    if (injectAllBtn) {
+      injectAllBtn.onclick = () => {
+        blocks.forEach((b) => {
+          window.postMessage({
+            type: '__INFINITY_APPLY_CODE_TO_EDITOR__',
+            code: b.code,
+            path: b.path
+          }, '*');
+        });
+        infinityShowToast('⚡', `${blocks.length} arquivo(s) injetados no editor com sucesso!`, 3500);
+      };
+    }
 
     panel.querySelectorAll('.infinity-btn-inject-single').forEach((btn) => {
       btn.onclick = () => {
         const idx = Number(btn.getAttribute('data-idx'));
         const targetBlock = blocks[idx];
         if (targetBlock) {
-          // Copia preventivamente para o clipboard
-          try { navigator.clipboard.writeText(targetBlock.code); } catch(_) {}
-
+          infinitySafeCopy(targetBlock.code);
           window.postMessage({
             type: '__INFINITY_APPLY_CODE_TO_EDITOR__',
             code: targetBlock.code,
@@ -6199,6 +6337,54 @@ function renderInfinityInspectorDashboard(blocks, fullText, model) {
     // Auto-dismiss after 60s
     clearTimeout(panel._timer);
     panel._timer = setTimeout(() => { if (panel) panel.remove(); }, 60000);
+  }
+
+  // ─── Direct Chat Input/Composer Injector ──────────────────────────────────
+  function injectTextIntoChatInput(text) {
+    try {
+      if (!text) return false;
+      const inputs = document.querySelectorAll('textarea, [contenteditable="true"], .tiptap, .ProseMirror, [data-chat-input]');
+      let applied = false;
+
+      inputs.forEach((inputEl) => {
+        if (inputEl.tagName === 'TEXTAREA') {
+          try {
+            const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+            if (nativeSetter) {
+              nativeSetter.call(inputEl, text);
+            } else {
+              inputEl.value = text;
+            }
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+            inputEl.style.height = 'auto';
+            inputEl.style.height = Math.min(inputEl.scrollHeight, 400) + 'px';
+            inputEl.focus();
+            applied = true;
+          } catch (_) {
+            inputEl.value = text;
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        } else if (inputEl.getAttribute('contenteditable') === 'true' || inputEl.classList.contains('tiptap') || inputEl.classList.contains('ProseMirror')) {
+          try {
+            inputEl.focus();
+            inputEl.innerText = text;
+            inputEl.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+            applied = true;
+          } catch (_) {}
+        }
+      });
+
+      if (applied) {
+        console.log('[Infinity Claude AI] ✍️ Resposta preenchida com sucesso na caixa de mensagem/input do Lovable!');
+        infinityShowToast('✍️', 'Resposta colocada diretamente no campo de texto do Lovable!', 3000);
+      }
+      return applied;
+    } catch (e) {
+      console.warn('[Infinity Claude AI] Aviso ao injetar no input de mensagem:', e);
+      return false;
+    }
   }
 
   window.addEventListener('message', (event) => {
@@ -6222,34 +6408,57 @@ function renderInfinityInspectorDashboard(blocks, fullText, model) {
     }
     console.groupEnd();
 
-    if (blocks && blocks.length > 0) {
-      // Auto-apply primary block
-      window.postMessage({
-        type: '__INFINITY_APPLY_CODE_TO_EDITOR__',
-        code: blocks[0].code,
-        path: blocks[0].path
-      }, '*');
+    // 1. INJETAR DIRETAMENTE NA CAIXA DE TEXTO / INPUT ONDE O USUÁRIO ENVIA MENSAGEM
+    injectTextIntoChatInput(text);
 
-      injectMessageIntoChatDOM(text, model, blocks);
-      renderInfinityInspectorDashboard(blocks, text, model);
-      infinityShowToast('⚡', `${blocks.length} arquivo(s) prontos via ${model || '9Router'}!`, 4000);
+    // 2. Renderizar também na timeline do chat
+    injectMessageIntoChatDOM(text, model, blocks);
+
+    // 3. AUTO-INJECT DIRETO: Injetar e salvar todos os arquivos gerados automaticamente no editor
+    if (blocks && blocks.length > 0) {
+      console.log(`[Infinity Claude AI] ⚡ Auto-Inject ativado: Injetando ${blocks.length} arquivo(s) diretamente no editor...`);
+      
+      blocks.forEach((b, idx) => {
+        setTimeout(() => {
+          window.postMessage({
+            type: '__INFINITY_APPLY_CODE_TO_EDITOR__',
+            code: b.code,
+            path: b.path
+          }, '*');
+        }, idx * 250);
+      });
+
+      infinityShowToast('⚡', `${blocks.length} arquivo(s) gerados e aplicados automaticamente no editor!`, 4000);
     }
   });
 
-  // ─── Infinity UI Unlocker & Chat Re-enabler ────────────────────────────────
+  // ─── Infinity UI Unlocker & Smart Composer Bypass ─────────────────────────
   function llForceUnlockChatUI() {
     try {
       let unlockedCount = 0;
-      const disabledButtons = document.querySelectorAll('button[disabled], button[aria-disabled="true"]');
-      disabledButtons.forEach((btn) => {
+
+      // 1. Remover tooltips ou balões "Lovable is working..." do DOM
+      const allTooltips = document.querySelectorAll('[role="tooltip"], [data-radix-popper-content-wrapper], div.fixed, div.absolute');
+      allTooltips.forEach((el) => {
+        if ((el.textContent || '').includes('Lovable is working')) {
+          el.remove();
+          unlockedCount++;
+        }
+      });
+
+      // 2. Destravar todos os botões de envio (inclusive ícones de seta ↑)
+      const actionButtons = document.querySelectorAll('button[disabled], button[aria-disabled="true"], button:has(svg), button:has(svg.lucide-arrow-up)');
+      actionButtons.forEach((btn) => {
         btn.removeAttribute('disabled');
         btn.setAttribute('aria-disabled', 'false');
         btn.style.pointerEvents = 'auto';
         btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
         unlockedCount++;
       });
 
-      const inputs = document.querySelectorAll('textarea[disabled], [contenteditable="false"], .tiptap[contenteditable="false"]');
+      // 3. Reabilitar todos os inputs e contenteditables
+      const inputs = document.querySelectorAll('textarea, [contenteditable], .tiptap, .ProseMirror');
       inputs.forEach((inp) => {
         inp.removeAttribute('disabled');
         inp.setAttribute('contenteditable', 'true');
@@ -6258,17 +6467,234 @@ function renderInfinityInspectorDashboard(blocks, fullText, model) {
         unlockedCount++;
       });
 
-      if (unlockedCount > 0) {
-        console.log(`%c 🔓 [INFINITY UI UNLOCK] ${unlockedCount} elementos de interface reabilitados para novo envio.`, 'color:#10b981;font-weight:bold;');
-      }
+      // 4. Se houver item de Fila bloqueado, clica para disparar ou libera
+      const queueButtons = document.querySelectorAll('button:has(svg.lucide-play), [aria-label*="resume"], [aria-label*="play"]');
+      queueButtons.forEach((qb) => {
+        try { qb.click(); } catch(_) {}
+      });
     } catch (_) {}
   }
+
+  // Monitorar continuamente de forma silenciosa para remover qualquer trava residual
+  setInterval(llForceUnlockChatUI, 1000);
+
+  // ─── Smart Enter Key & Click Fallback Dispatcher ───────────────────────────
+  function getChatInputText() {
+    const activeEl = document.querySelector('textarea, [contenteditable="true"], .tiptap, .ProseMirror');
+    if (!activeEl) return '';
+    if (activeEl.tagName === 'TEXTAREA') return activeEl.value.trim();
+    return (activeEl.innerText || activeEl.textContent || '').trim();
+  }
+
+  function clearChatInput() {
+    const activeEl = document.querySelector('textarea, [contenteditable="true"], .tiptap, .ProseMirror');
+    if (!activeEl) return;
+    if (activeEl.tagName === 'TEXTAREA') {
+      activeEl.value = '';
+      activeEl.dispatchEvent(new Event('input', { bubbles: true }));
+      activeEl.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      activeEl.innerText = '';
+      activeEl.innerHTML = '<p><br></p>';
+      activeEl.dispatchEvent(new Event('input', { bubbles: true }));
+      activeEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  function detectCurrentProjectId() {
+    const m = window.location.href.match(/projects\/([a-zA-Z0-9_-]+)/i);
+    return (m && m[1]) || 'a3684235-1782-4a8a-94d4-41deb8cb035b';
+  }
+
+  function dispatchDirectPrompt(text) {
+    if (!text || text.length < 2) return;
+    console.log('[Infinity Claude AI] ⚡ Disparando envio direto via Smart Composer Bypass:', text);
+    clearChatInput();
+    llForceUnlockChatUI();
+
+    // Remover qualquer caixa de fila pendente do DOM de forma segura
+    try {
+      const allDivs = document.querySelectorAll('div');
+      allDivs.forEach((q) => {
+        const txt = (q.textContent || '').trim();
+        if (txt.includes('Fila') && (txt.includes('1') || txt.includes('2')) && q.children.length > 0 && q.children.length < 6) {
+          const btnClose = q.querySelector('button');
+          if (btnClose) btnClose.click();
+          q.remove();
+        }
+      });
+    } catch (_) {}
+
+    const pid = detectCurrentProjectId();
+    window.fetch(`https://api.lovable.dev/projects/${pid}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    }).catch(() => {});
+  }
+
+  // Interceptar tecla Enter para envio garantido
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      const target = e.target;
+      const isInput = target && (target.tagName === 'TEXTAREA' || target.getAttribute('contenteditable') === 'true' || target.classList.contains('tiptap') || target.classList.contains('ProseMirror'));
+      if (!isInput) return;
+
+      const text = getChatInputText();
+      if (!text || text.length < 2) return;
+
+      const isStuckWorking = document.body.innerText.includes('Lovable is working') || document.querySelector('[data-radix-popper-content-wrapper]') !== null;
+      if (isStuckWorking) {
+        e.preventDefault();
+        e.stopPropagation();
+        dispatchDirectPrompt(text);
+      }
+    }
+  }, true);
+
+  // Interceptar clique no botão de envio (seta para cima)
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button:has(svg.lucide-arrow-up), button:has(svg), button[type="submit"]');
+    if (!btn) return;
+
+    const isNearChatInput = btn.closest('form, div:has(textarea), div:has([contenteditable]), aside, [data-panel]');
+    if (!isNearChatInput) return;
+
+    const text = getChatInputText();
+    const isStuckWorking = document.body.innerText.includes('Lovable is working') || btn.getAttribute('disabled') !== null || btn.getAttribute('aria-disabled') === 'true';
+
+    if (text && text.length >= 2 && isStuckWorking) {
+      e.preventDefault();
+      e.stopPropagation();
+      dispatchDirectPrompt(text);
+    }
+  }, true);
 
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.data && event.data.type === '__INFINITY_UNLOCK_CHAT_UI__') {
       llForceUnlockChatUI();
-      setTimeout(llForceUnlockChatUI, 400);
-      setTimeout(llForceUnlockChatUI, 1200);
+      setTimeout(llForceUnlockChatUI, 300);
+      setTimeout(llForceUnlockChatUI, 800);
+      setTimeout(llForceUnlockChatUI, 1600);
     }
   });
+
+  // ─── Infinity VIP Prompt Templates & Toolbar ──────────────────────────────
+  const INFINITY_VIP_TEMPLATES = [
+    {
+      icon: "🎨",
+      label: "Redesign UI/UX",
+      prompt: "## Redesign Profissional de Aplicação Web - Foco em Estética, Animações e UI/UX\n\n**Objetivo:** Transformar a interface em uma experiência ultra-moderna, estética e fluida com alto padrão de design.\n\n**Requisitos:**\n1. Cores e Tipografia: Paleta harmoniosa HSL em Dark Mode com acentos vibrantes e tipografia moderna (Inter/Outfit).\n2. Estética: Glassmorphism refinado, sombras suaves multicamadas e bordas sutis.\n3. Micro-interações: Hover states táteis, transições suaves (Framer Motion / Tailwind transitions) e feedback imediato.\n4. Responsividade total: Perfeita adaptação mobile e desktop."
+    },
+    {
+      icon: "🎯",
+      label: "Fix Error & Auditoria",
+      prompt: "## Solicitação de Auditoria Completa e Correção de Erro\n\n**Objetivo:** Identificar a causa raiz do problema atual, corrigir o código com precisão e implementar proteções contra falhas futuras.\n\n**Instruções:**\n1. Analisar logs de console e fluxo de dados.\n2. Isolar o componente com falha e tratar casos de valores nulos/indefinidos.\n3. Validar tipagens TypeScript estritas e chamadas de API assíncronas.\n4. Entregar o código corrigido completo com testes de validação."
+    },
+    {
+      icon: "💾",
+      label: "Migrar p/ Supabase",
+      prompt: "## Migração e Arquitetura Completa de Banco de Dados: Supabase\n\n**Objetivo:** Estruturar tabelas, relacionamentos, políticas de segurança RLS (Row Level Security) e migrações no Supabase.\n\n**Requisitos:**\n1. Criar tabelas com UUIDs, chaves primárias e relacionamentos com integridade referencial (ON DELETE CASCADE).\n2. Habilitar RLS em todas as tabelas com políticas declarativas por `auth.uid()`.\n3. Implementar triggers para `updated_at` automático.\n4. Gerar código TypeScript para integração com `@supabase/supabase-js`."
+    },
+    {
+      icon: "💫",
+      label: "Transições Suaves",
+      prompt: "## Implementação de Transições de Página e Animações Fluidas\n\n**Objetivo:** Desenvolver transições de rota e animações de componentes fluidas a 60fps.\n\n**Funcionalidades:**\n1. Transições suaves de entrada e saída (Fade, Slide, Scale) entre páginas.\n2. Animação de listas com Staggered children.\n3. Feedback tátil em botões e modais com entrada suave."
+    }
+  ];
+
+  function renderInfinityQuickToolbar() {
+    try {
+      const composer = document.querySelector('form, div:has(> textarea), div:has(> [contenteditable]), aside, [data-panel]');
+      if (!composer || document.getElementById('infinity-vip-quickbar')) return;
+
+      const bar = document.createElement('div');
+      bar.id = 'infinity-vip-quickbar';
+      bar.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        margin-bottom: 6px;
+        overflow-x: auto;
+        white-space: nowrap;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(139, 92, 246, 0.35);
+        border-radius: 10px;
+        backdrop-filter: blur(8px);
+        font-family: system-ui, -apple-system, sans-serif;
+        z-index: 50;
+      `;
+
+      const badge = document.createElement('div');
+      badge.style.cssText = 'font-size:11px; font-weight:700; color:#c4b5fd; display:flex; align-items:center; gap:4px; margin-right:4px;';
+      badge.innerHTML = '<span>⚡</span> <span>VIP Templates:</span>';
+      bar.appendChild(badge);
+
+      INFINITY_VIP_TEMPLATES.forEach((tpl) => {
+        const btn = document.createElement('button');
+        btn.style.cssText = `
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #e2e8f0;
+          padding: 4px 10px;
+          border-radius: 6px;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          transition: all 0.2s ease;
+        `;
+        btn.innerHTML = `<span>${tpl.icon}</span> <span>${tpl.label}</span>`;
+        btn.onmouseover = () => { btn.style.background = 'rgba(124, 58, 237, 0.3)'; btn.style.borderColor = '#a78bfa'; };
+        btn.onmouseout = () => { btn.style.background = 'rgba(255, 255, 255, 0.06)'; btn.style.borderColor = 'rgba(255, 255, 255, 0.12)'; };
+        btn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          injectTextIntoChatInput(tpl.prompt);
+          infinityShowToast(tpl.icon, `Template "${tpl.label}" aplicado no chat!`, 2500);
+        };
+        bar.appendChild(btn);
+      });
+
+      // Botão Deep Clean Cache
+      const cleanBtn = document.createElement('button');
+      cleanBtn.style.cssText = `
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        color: #34d399;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-left: auto;
+      `;
+      cleanBtn.innerHTML = '<span>🧹</span> <span>Limpar Cache</span>';
+      cleanBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cleanBtn.innerHTML = '<span>⏳</span> <span>Limpando…</span>';
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+          chrome.runtime.sendMessage({ type: 'INFINITY_DEEP_CLEAN' }, (res) => {
+            cleanBtn.innerHTML = '<span>🧹</span> <span>Limpar Cache</span>';
+            infinityShowToast('🧹', 'Cache do Lovable & Vite limpo com sucesso!', 3000);
+          });
+        }
+      };
+      bar.appendChild(cleanBtn);
+
+      const targetInput = document.querySelector('textarea, [contenteditable="true"], .tiptap, .ProseMirror');
+      if (targetInput && targetInput.parentElement) {
+        targetInput.parentElement.insertAdjacentElement('beforebegin', bar);
+      }
+    } catch (_) {}
+  }
+
+  setInterval(renderInfinityQuickToolbar, 2000);

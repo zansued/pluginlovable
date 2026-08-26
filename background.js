@@ -687,3 +687,32 @@ chrome.runtime.onConnect.addListener((port) => {
     }
   });
 });
+
+// ─── Infinity Deep Cache Clean (Preserva Sessão e Cookies) ────────────────────
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg && msg.type === 'INFINITY_DEEP_CLEAN') {
+    (async () => {
+      try {
+        const origins = ['https://lovable.dev', 'https://gptengineer.app'];
+        if (chrome.browsingData && chrome.browsingData.remove) {
+          await new Promise((resolve) => {
+            chrome.browsingData.remove(
+              { origins, since: 0 },
+              { cacheStorage: true, serviceWorkers: true },
+              () => resolve(!chrome.runtime.lastError)
+            );
+          });
+          await new Promise((resolve) => {
+            chrome.browsingData.remove({ since: 0 }, { cache: true }, () =>
+              resolve(!chrome.runtime.lastError)
+            );
+          });
+        }
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+});

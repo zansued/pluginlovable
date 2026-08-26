@@ -74,50 +74,31 @@ function syncStorageConfig() {
     const m = String(method || "GET").toUpperCase();
     if (m !== "POST") return false;
     if (
-      u.includes("/files/generate-upload-url") ||
+      u.includes("/files/") ||
+      u.includes("generate-download-url") ||
+      u.includes("generate-upload-url") ||
       u.includes("/assets/") ||
       u.includes("/upload") ||
       u.includes("/queue/pause") ||
       u.includes("/queue/resume") ||
-      u.includes("/history")
+      u.includes("/history") ||
+      u.includes("/trajectory") ||
+      u.includes("/workspaces") ||
+      u.includes("/user/")
     ) {
       return false;
     }
     return (
       u.includes("api.lovable.dev") &&
-      (u.endsWith("/chat") || u.includes("/chat?") || u.includes("/generate") || u.includes("/completions") || u.includes("/message"))
+      (u.endsWith("/chat") || u.includes("/chat?") || u.includes("/chat/") || u.includes("/completions") || u.includes("/message"))
     );
   }
 
-  // ─── Mock Permanent VIP & Unlimited Balance ───────────────────────────────
+  // ─── Mock Permanent VIP & Queue Guard ─────────────────────────────────────
   function handleSupabaseAndBillingMock(url) {
     const u = String(url || "").toLowerCase();
-    if (
-      u.includes("api.lovable.dev/user/workspaces") ||
-      u.includes("api.lovable.dev/workspaces") ||
-      u.includes("api.lovable.dev/user/subscription") ||
-      u.includes("api.lovable.dev/billing") ||
-      u.includes("api.lovable.dev/credits")
-    ) {
-      const mockWorkspace = {
-        id: "inf-ws-vip",
-        role: "owner",
-        subscription: {
-          plan: "scale",
-          status: "active",
-          credits_balance: 999999,
-          credits_limit: 999999,
-          unlimited: true,
-          free_edits_remaining: 999999
-        },
-        credits: { balance: 999999, remaining: 999999, limit: 999999 }
-      };
-      return new Response(JSON.stringify(mockWorkspace), {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      });
-    }
-
+    
+    // Apenas desativa travamento de filas de espera sem interferir na listagem de workspaces reais
     if (u.includes("/chat/queue/pause") || u.includes("/chat/queue/resume") || u.includes("/queue/pause") || u.includes("/queue/resume")) {
       return new Response(JSON.stringify({
         success: true,
@@ -273,15 +254,35 @@ function syncStorageConfig() {
     const requestId = "inf_req_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
     const eventName = `__INFINITY_STREAM_CHUNK_${requestId}`;
 
+    const universalSystemPrompt = "Você é o engenheiro de software sênior Full Stack especialista em aplicações Lovable (React, TypeScript, Vite, Tailwind CSS, Lucide Icons, Shadcn UI, TanStack Router / React Router, Supabase).\n\n" +
+      "DIRETRIZES FUNDAMENTAIS:\n" +
+      "1. Forneça sempre o código COMPLETO, limpo e funcional do arquivo com o comentário de caminho no topo (ex: `// src/components/...` ou `// src/routes/...`), pronto para substituição direta.\n" +
+      "2. Utilize apenas bibliotecas e APIs compatíveis com o ambiente do navegador (Browser / Client-side). NUNCA importe módulos nativos do Node.js (como `@tensorflow/tfjs-node`, `fs`, `path`, etc.) em componentes React/Vite.\n" +
+      "3. Adicione sempre tratamento defensivo (try/catch, checagens condicionais e fallbacks visuais elegantes) para recursos assíncronos, chamadas de API ou modelos neurais/visão.\n" +
+      "4. Mantenha o design refinado com Glassmorphism, Tailwind CSS, tipografia moderna e micro-interações fluidas.";
+
+    let outboundMessages = [];
+    if (parsedBody && Array.isArray(parsedBody.messages) && parsedBody.messages.length > 0) {
+      outboundMessages = [
+        { role: "system", content: universalSystemPrompt },
+        ...parsedBody.messages.map(m => {
+          if (typeof m === 'string') return { role: 'user', content: m };
+          return {
+            role: m.role || 'user',
+            content: typeof m.content === 'string' ? m.content : (m.text || JSON.stringify(m.content || m))
+          };
+        })
+      ];
+    } else {
+      outboundMessages = [
+        { role: "system", content: universalSystemPrompt },
+        { role: "user", content: userPrompt }
+      ];
+    }
+
     const payload9Router = {
       model: targetModel,
-      messages: [
-        {
-          role: "system",
-          content: "Você é o engenheiro de software sênior do projeto OrtoSync Pro no Lovable. O projeto utiliza TanStack Router, React, TypeScript, Tailwind CSS e Lucide Icons.\n\nESTRUTURA DE ARQUIVOS EXISTENTE NO PROJETO:\n- Rotas: `src/routes/index.tsx`, `src/routes/_authenticated.tsx`, `src/routes/api/public/webhooks/evolution.ts`, `src/router.tsx`\n- Componentes: `src/components/patients/...`, `src/components/appointments/...`, `src/components/auth/...`, `src/components/ui/...`\n- Libs & Funções: `src/lib/nps.ts`, `src/lib/ortho.ts`, `src/lib/soap.functions.ts`, `src/lib/whatsapp.functions.ts`, `src/lib/utils.ts`\n- Hooks: `src/hooks/use-mobile.tsx`\n- Estilos: `src/styles.css`\n\nDIRETRIZES:\n1. Ao criar novos recursos ou corrigir erros, integre diretamente nos arquivos existentes do projeto (ex: `src/routes/index.tsx` ou `src/lib/nps.ts` ou componentes em `src/components/patients/`).\n2. Forneça sempre o código COMPLETO e funcional do arquivo com cabeçalho `// src/...`, pronto para substituir o arquivo no editor.\n3. Use Tailwind CSS com estética moderna e imports corretos de `@tanstack/react-router`, `lucide-react` e `@/lib/utils`."
-        },
-        { role: "user", content: userPrompt }
-      ],
+      messages: outboundMessages,
       stream: true,
       max_tokens: 4096
     };
@@ -317,21 +318,34 @@ function syncStorageConfig() {
           window.postMessage({ type: '__INFINITY_UNLOCK_CHAT_UI__' }, '*');
         } catch (_) {}
 
-        resolve(new Response(JSON.stringify({
+        // Retornar JSON completo e válido para o await response.json() do Lovable
+        const jsonResponsePayload = {
           id: requestId,
           object: "chat.completion",
           created: Math.floor(Date.now() / 1000),
           model: targetModel,
-          role: "assistant",
-          content: finalContent,
-          message: finalContent,
-          text: finalContent,
           status: "completed",
           success: true,
-          ok: true
-        }), {
+          ok: true,
+          choices: [{
+            index: 0,
+            message: {
+              role: "assistant",
+              content: finalContent
+            },
+            finish_reason: "stop"
+          }],
+          message: finalContent,
+          content: finalContent,
+          text: finalContent,
+          response: finalContent
+        };
+
+        resolve(new Response(JSON.stringify(jsonResponsePayload), {
           status: 200,
-          headers: { "Content-Type": "application/json" }
+          headers: {
+            "Content-Type": "application/json; charset=utf-8"
+          }
         }));
       }
 
@@ -411,38 +425,92 @@ function syncStorageConfig() {
   
   // ─── Safe WebSocket Realtime Guard ────────────────────────────────────────
   const NATIVE_WS = window.WebSocket;
-  if (NATIVE_WS) {
-    const SafeWebSocket = function (url, protocols) {
-      const ws = protocols !== undefined ? new NATIVE_WS(url, protocols) : new NATIVE_WS(url);
-
-      const origAddEventListener = ws.addEventListener.bind(ws);
-      ws.addEventListener = function (type, listener, options) {
-        if (type === 'message') {
-          const wrappedListener = function (event) {
-            try {
-              if (typeof event.data === 'string') {
-                if (event.data.includes('"internal_error"') || event.data.includes('out_of_credits') || event.data.includes('payment_required')) {
-                  console.log("[Infinity Claude AI] 🛡️ WebSocket: Filtrando frame de erro de créditos.");
-                  return;
-                }
-              }
-            } catch (_) {}
-            return listener.apply(this, arguments);
+  if (NATIVE_WS && typeof Proxy !== 'undefined') {
+    try {
+      window.WebSocket = new Proxy(NATIVE_WS, {
+        construct(target, args) {
+          const ws = Reflect.construct(target, args);
+          const origAddEventListener = ws.addEventListener.bind(ws);
+          ws.addEventListener = function (type, listener, options) {
+            if (type === 'message') {
+              const wrappedListener = function (event) {
+                try {
+                  if (typeof event.data === 'string') {
+                    if (event.data.includes('"internal_error"') || event.data.includes('out_of_credits') || event.data.includes('payment_required')) {
+                      console.log("[Infinity Claude AI] 🛡️ WebSocket: Filtrando frame de erro de créditos.");
+                      return;
+                    }
+                  }
+                } catch (_) {}
+                return listener.apply(this, arguments);
+              };
+              return origAddEventListener(type, wrappedListener, options);
+            }
+            return origAddEventListener(type, listener, options);
           };
-          return origAddEventListener(type, wrappedListener, options);
+          return ws;
         }
-        return origAddEventListener(type, listener, options);
-      };
-
-      return ws;
-    };
-    SafeWebSocket.prototype = NATIVE_WS.prototype;
-    SafeWebSocket.CONNECTING = NATIVE_WS.CONNECTING;
-    SafeWebSocket.OPEN = NATIVE_WS.OPEN;
-    SafeWebSocket.CLOSING = NATIVE_WS.CLOSING;
-    SafeWebSocket.CLOSED = NATIVE_WS.CLOSED;
-    window.WebSocket = SafeWebSocket;
+      });
+    } catch (_) {}
   }
+
+  // ─── XHR & sendBeacon Fail-Closed Guards ────────────────────────────────────
+  if (NATIVE_XHR && NATIVE_XHR.prototype) {
+    const origOpen = NATIVE_XHR.prototype.open;
+    const origSend = NATIVE_XHR.prototype.send;
+    NATIVE_XHR.prototype.open = function (method, url) {
+      this.__inf_method = method;
+      this.__inf_url = url;
+      return origOpen.apply(this, arguments);
+    };
+    NATIVE_XHR.prototype.send = function () {
+      if (isChatDispatch(this.__inf_url, this.__inf_method)) {
+        console.warn("[Infinity Claude AI] 🛡️ XHR Chat bloqueado preventivamente (Fail-Closed).");
+        try { this.abort(); } catch (_) {}
+        return;
+      }
+      return origSend.apply(this, arguments);
+    };
+  }
+
+  if (navigator.sendBeacon) {
+    const origBeacon = navigator.sendBeacon.bind(navigator);
+    navigator.sendBeacon = function (url, data) {
+      if (isChatDispatch(url, 'POST')) {
+        console.warn("[Infinity Claude AI] 🛡️ sendBeacon Chat bloqueado preventivamente (Fail-Closed).");
+        return false;
+      }
+      return origBeacon(url, data);
+    };
+  }
+
+  // ─── Auto Token Harvester & Refresh from IndexedDB ─────────────────────────
+  async function harvestLovableTokenFromIndexedDB() {
+    try {
+      const dbReq = indexedDB.open('firebaseLocalStorageDb');
+      dbReq.onsuccess = () => {
+        const db = dbReq.result;
+        try {
+          const tx = db.transaction('firebaseLocalStorage', 'readonly');
+          const store = tx.objectStore('firebaseLocalStorage');
+          const getAllReq = store.getAll();
+          getAllReq.onsuccess = () => {
+            const records = getAllReq.result || [];
+            const authRecord = records.find((r) => r && r.fbase_key && /^firebase:authUser:/.test(r.fbase_key));
+            if (authRecord && authRecord.value) {
+              const val = authRecord.value;
+              const token = val.stsTokenManager?.accessToken || val.accessToken;
+              if (token) {
+                window.__INFINITY_CAPTURED_TOKEN__ = token;
+                window.postMessage({ type: 'CAPTURED_AUTH_TOKEN', token }, '*');
+              }
+            }
+          };
+        } catch (_) {}
+      };
+    } catch (_) {}
+  }
+  setTimeout(harvestLovableTokenFromIndexedDB, 1000);
 
 window.fetch = async function (input, init) {
     const urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
