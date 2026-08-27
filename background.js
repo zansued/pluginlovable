@@ -716,3 +716,96 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 });
+
+// ─── Infinity GitHub Direct Sync (Direct Editor) ────────────────────────────
+async function commitFileToGitHub(owner, repo, path, content, token, branch = 'main') {
+  const cleanPath = path.replace(/^[./\\]+/, '');
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}`;
+  const headers = {
+    'Authorization': `token ${token}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'Infinity-Claude-AI'
+  };
+
+  // 1. Obter SHA do arquivo se ele já existir
+  let sha = null;
+  try {
+    const getRes = await fetch(`${url}?ref=${branch}`, { headers });
+    if (getRes.ok) {
+      const getData = await getRes.json();
+      sha = getData.sha;
+    }
+  } catch (_) {}
+
+  // 2. Codificar conteúdo em Base64 UTF-8 seguro
+  const utf8Bytes = new TextEncoder().encode(content);
+  let binary = '';
+  for (let i = 0; i < utf8Bytes.length; i++) {
+    binary += String.fromCharCode(utf8Bytes[i]);
+  }
+  const base64Content = btoa(binary);
+
+  // 3. Executar o PUT para criar ou atualizar o arquivo
+  const putBody = {
+    message: `feat(infinity): update ${cleanPath} via Infinity Claude AI`,
+    content: base64Content,
+    branch: branch
+  };
+  if (sha) putBody.sha = sha;
+
+  const putRes = await fetch(url, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(putBody)
+  });
+
+  if (!putRes.ok) {
+    const errData = await putRes.json().catch(() => ({}));
+    throw new Error(errData.message || `HTTP ${putRes.status}`);
+  }
+
+  return await putRes.json();
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg && msg.type === 'INFINITY_GITHUB_SYNC_FILES') {
+    (async () => {
+      try {
+        const { files, repoUrl, githubToken } = msg;
+        const stored = await chrome.storage.local.get(['infinity_github_token', 'infinity_github_repo']);
+        const targetRepo = repoUrl || stored.infinity_github_repo || 'https://github.com/zansued/cozy-companion-hub-59.git';
+        const targetToken = githubToken || stored.infinity_github_token || '';
+
+        if (!targetToken) {
+          sendResponse({ ok: false, error: 'Token do GitHub não configurado' });
+          return;
+        }
+
+        const match = targetRepo.match(/github\.com[/:]([^/]+)\/([^/.]+)/i);
+        if (!match) {
+          sendResponse({ ok: false, error: 'URL do repositório GitHub inválida' });
+          return;
+        }
+
+        const owner = match[1];
+        const repo = match[2];
+        const results = [];
+
+        for (const file of (files || [])) {
+          if (!file.path || !file.code) continue;
+          try {
+            const res = await commitFileToGitHub(owner, repo, file.path, file.code, targetToken);
+            results.push({ path: file.path, success: true, sha: res.commit?.sha });
+          } catch (err) {
+            results.push({ path: file.path, success: false, error: err.message });
+          }
+        }
+
+        sendResponse({ ok: true, results, owner, repo });
+      } catch (e) {
+        sendResponse({ ok: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+});

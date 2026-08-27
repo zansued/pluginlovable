@@ -6415,10 +6415,28 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
     // 2. Renderizar na linha do tempo do chat com visual Infinity Claude AI
     injectMessageIntoChatDOM(text, model, blocks);
 
-    // 3. AUTO-INJECT DIRETO: Injetar e salvar todos os arquivos gerados automaticamente no editor
+    // 3. DIRECT GITHUB SYNC (Sincronização Direta com o Repositório do Projeto)
     if (blocks && blocks.length > 0) {
-      console.log(`[Infinity Claude AI] ⚡ Auto-Inject ativado: Injetando ${blocks.length} arquivo(s) diretamente no editor...`);
-      
+      const savedRepo = localStorage.getItem("infinity_github_repo") || "https://github.com/zansued/cozy-companion-hub-59.git";
+      const savedToken = localStorage.getItem("infinity_github_token") || "";
+
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({
+          type: 'INFINITY_GITHUB_SYNC_FILES',
+          files: blocks,
+          repoUrl: savedRepo,
+          githubToken: savedToken
+        }, (res) => {
+          if (res && res.ok) {
+            const successCount = (res.results || []).filter((r) => r.success).length;
+            console.log(`[Infinity Claude AI] 🐙 ${successCount} arquivo(s) sincronizados no GitHub: ${res.owner}/${res.repo}`);
+            infinityShowToast('🐙', `GitHub Sync: ${successCount} arquivo(s) commitados no repositório! Lovable atualizando...`, 5000);
+          }
+        });
+      }
+
+      // 4. AUTO-INJECT DIRETO no CodeMirror local
+      console.log(`[Infinity Claude AI] ⚡ Auto-Inject ativado: Injetando ${blocks.length} arquivo(s) no editor local...`);
       blocks.forEach((b, idx) => {
         setTimeout(() => {
           window.postMessage({
@@ -6426,10 +6444,8 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
             code: b.code,
             path: b.path
           }, '*');
-        }, idx * 250);
+        }, idx * 300);
       });
-
-      infinityShowToast('⚡', `${blocks.length} arquivo(s) gerados e aplicados automaticamente no editor!`, 4000);
     }
   });
 

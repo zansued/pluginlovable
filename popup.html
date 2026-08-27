@@ -348,6 +348,7 @@
     <button class="tab-btn active" data-tab="tab-stats">📊 Economia</button>
     <button class="tab-btn" data-tab="tab-skills">🧠 Skills</button>
     <button class="tab-btn" data-tab="tab-router">⚙️ 9Router</button>
+    <button class="tab-btn" data-tab="tab-github">🐙 GitHub</button>
   </div>
 
   <!-- Tab 1: Stats & Economia -->
@@ -431,6 +432,28 @@
 
       <button class="btn" id="saveRouterBtn">Salvar Configurações</button>
       <div class="status-msg" id="routerStatus">Configurações salvas com sucesso!</div>
+    </div>
+  </div>
+
+  <!-- Tab 4: GitHub Direct Sync -->
+  <div id="tab-github" class="tab-content">
+    <div class="card">
+      <div class="card-title">
+        <span>🐙 Editor Direto via GitHub</span>
+        <span style="color: var(--accent); font-size: 10px;">Auto-Commit</span>
+      </div>
+      <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+        Os arquivos gerados pela IA são commitados diretamente no seu repositório. O Lovable faz o pull e atualiza o projeto instantaneamente.
+      </p>
+
+      <label class="field-label">Repositório do Projeto (GitHub):</label>
+      <input type="text" id="githubRepoInput" placeholder="https://github.com/zansued/cozy-companion-hub-59.git">
+
+      <label class="field-label">Personal Access Token (PAT):</label>
+      <input type="password" id="githubTokenInput" placeholder="ghp_...">
+
+      <button class="btn" id="saveGithubBtn">Salvar e Conectar ao GitHub</button>
+      <div class="status-msg" id="githubStatus">GitHub conectado e sincronizado!</div>
     </div>
   </div>
 

@@ -219,6 +219,16 @@ function injectCodeIntoEditor(filePath, codeContent) {
     }
 
     if (cmSuccess) {
+      // Dispara salvamento ativo (Ctrl+S / Cmd+S) para o Lovable persistir no Sandbox
+      try {
+        const cmContent = document.querySelector('.cm-content');
+        if (cmContent) {
+          cmContent.dispatchEvent(new KeyboardEvent('keydown', { key: 's', code: 'KeyS', ctrlKey: true, bubbles: true }));
+          cmContent.dispatchEvent(new KeyboardEvent('keydown', { key: 's', code: 'KeyS', metaKey: true, bubbles: true }));
+          cmContent.dispatchEvent(new Event('blur', { bubbles: true }));
+        }
+      } catch (_) {}
+
       // Dispara recarregamento no Vite Devserver
       try {
         const iframes = document.querySelectorAll('iframe');

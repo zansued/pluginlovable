@@ -125,6 +125,44 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Elements - GitHub Sync
+  const githubRepoInput = document.getElementById("githubRepoInput");
+  const githubTokenInput = document.getElementById("githubTokenInput");
+  const saveGithubBtn = document.getElementById("saveGithubBtn");
+  const githubStatus = document.getElementById("githubStatus");
+
+  // Load Saved GitHub Config
+  if (chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get([
+      "infinity_github_repo",
+      "infinity_github_token"
+    ], (res) => {
+      if (githubRepoInput) githubRepoInput.value = res.infinity_github_repo || "https://github.com/zansued/cozy-companion-hub-59.git";
+      if (githubTokenInput) githubTokenInput.value = res.infinity_github_token || "";
+    });
+  }
+
+  // Save GitHub Settings
+  if (saveGithubBtn) {
+    saveGithubBtn.addEventListener("click", () => {
+      const repo = (githubRepoInput.value || "").trim() || "https://github.com/zansued/cozy-companion-hub-59.git";
+      const token = (githubTokenInput.value || "").trim();
+
+      if (chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({
+          infinity_github_repo: repo,
+          infinity_github_token: token
+        }, () => {
+          try {
+            localStorage.setItem("infinity_github_repo", repo);
+            localStorage.setItem("infinity_github_token", token);
+          } catch (_) {}
+          showStatus(githubStatus, "🐙 Conectado ao GitHub com sucesso!");
+        });
+      }
+    });
+  }
+
   // Save Router Settings
   if (saveRouterBtn) {
     saveRouterBtn.addEventListener("click", () => {
