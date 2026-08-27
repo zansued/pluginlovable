@@ -6013,17 +6013,43 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
   function findLovableChatContainer() {
     try {
       const inputEl = document.querySelector('textarea, [contenteditable="true"], .tiptap, .ProseMirror, [data-chat-input]');
+      const isInput = (el) => {
+        if (!el) return true;
+        if (el === inputEl) return true;
+        if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return true;
+        if (el.getAttribute('contenteditable') === 'true') return true;
+        if (el.classList.contains('ProseMirror') || el.classList.contains('tiptap')) return true;
+        if (el.closest('.ProseMirror') || el.closest('.tiptap')) return true;
+        return false;
+      };
+
+      // 1. Busca por seletores específicos da timeline de mensagens do Lovable
+      const timelineSelectors = [
+        '.chat-scroll-container',
+        '[data-chat-container]',
+        '[data-timeline]',
+        '[role="log"]',
+        '[data-radix-scroll-area-viewport]'
+      ];
+
+      for (const sel of timelineSelectors) {
+        const found = document.querySelector(sel);
+        if (found && !isInput(found) && !found.closest('.monaco-editor')) {
+          return found;
+        }
+      }
+
       if (inputEl) {
-        // Tenta achar dentro do mesmo painel do input
-        const panel = inputEl.closest('aside, [data-panel], form, div.flex-col.h-full, div.h-screen, div[class*="sidebar"]') || document.body;
+        // Tenta achar dentro do painel lateral mas FORA do composer/form
+        const panel = inputEl.closest('aside, [data-panel], div.flex-col.h-full, div.h-screen, div[class*="sidebar"]') || document.body;
         const candidate = panel.querySelector('[data-radix-scroll-area-viewport], [data-chat-container], [data-timeline], [role="log"], div.overflow-y-auto:not(.monaco-scrollable-element)');
-        if (candidate) return candidate;
+        if (candidate && !isInput(candidate)) return candidate;
 
         // Se o próprio pai ou irmão for scrollable
         let parent = inputEl.parentElement;
         while (parent && parent !== document.body) {
           const scrollableChild = parent.querySelector('[data-radix-scroll-area-viewport], .overflow-y-auto, [role="log"]');
-          if (scrollableChild && !scrollableChild.closest('.monaco-editor')) {
+          if (scrollableChild && !scrollableChild.closest('.monaco-editor') && !isInput(scrollableChild)) {
             return scrollableChild;
           }
           parent = parent.parentElement;
@@ -6035,7 +6061,7 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
         '[data-radix-scroll-area-viewport], [data-chat-container], [data-timeline], [role="log"], main div.flex-1.overflow-y-auto, div.overflow-y-auto'
       );
       for (const c of candidates) {
-        if (!c.closest('.monaco-editor') && !c.classList.contains('monaco-scrollable-element')) {
+        if (!c.closest('.monaco-editor') && !c.classList.contains('monaco-scrollable-element') && !isInput(c)) {
           return c;
         }
       }
