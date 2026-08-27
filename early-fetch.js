@@ -478,12 +478,34 @@ function syncStorageConfig() {
           response: finalContent
         };
 
-        resolve(new Response(JSON.stringify(jsonResponsePayload), {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json; charset=utf-8"
-          }
-        }));
+        const isSse = (init && init.headers && (
+          (typeof init.headers.get === 'function' && (init.headers.get('Accept') || '').includes('text/event-stream')) ||
+          (typeof init.headers === 'object' && String(init.headers['Accept'] || init.headers['accept'] || '').includes('text/event-stream'))
+        ));
+
+        if (isSse) {
+          const textEncoder = new TextEncoder();
+          const sseBody = `data: ${JSON.stringify({
+            id: requestId,
+            choices: [{ delta: { content: finalContent } }]
+          })}\n\ndata: [DONE]\n\n`;
+
+          resolve(new Response(textEncoder.encode(sseBody), {
+            status: 200,
+            headers: {
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Cache-Control": "no-cache",
+              "Connection": "keep-alive"
+            }
+          }));
+        } else {
+          resolve(new Response(JSON.stringify(jsonResponsePayload), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json; charset=utf-8"
+            }
+          }));
+        }
       }
 
       // Anti-timeout fast resolution (max 35s)
