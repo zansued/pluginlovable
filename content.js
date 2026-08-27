@@ -6339,10 +6339,10 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
     panel._timer = setTimeout(() => { if (panel) panel.remove(); }, 60000);
   }
 
-  // ─── Direct Chat Input/Composer Injector ──────────────────────────────────
-  function injectTextIntoChatInput(text) {
+  // ─── Template Prompt Populator (Apenas para atalhos VIP de usuário) ────────
+  function populateUserPromptTemplate(promptText) {
     try {
-      if (!text) return false;
+      if (!promptText) return false;
       const inputs = document.querySelectorAll('textarea, [contenteditable="true"], .tiptap, .ProseMirror, [data-chat-input]');
       let applied = false;
 
@@ -6351,9 +6351,9 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
           try {
             const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
             if (nativeSetter) {
-              nativeSetter.call(inputEl, text);
+              nativeSetter.call(inputEl, promptText);
             } else {
-              inputEl.value = text;
+              inputEl.value = promptText;
             }
             inputEl.dispatchEvent(new Event('input', { bubbles: true }));
             inputEl.dispatchEvent(new Event('change', { bubbles: true }));
@@ -6362,27 +6362,21 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
             inputEl.focus();
             applied = true;
           } catch (_) {
-            inputEl.value = text;
+            inputEl.value = promptText;
             inputEl.dispatchEvent(new Event('input', { bubbles: true }));
           }
         } else if (inputEl.getAttribute('contenteditable') === 'true' || inputEl.classList.contains('tiptap') || inputEl.classList.contains('ProseMirror')) {
           try {
             inputEl.focus();
-            inputEl.innerText = text;
-            inputEl.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+            inputEl.innerText = promptText;
+            inputEl.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: promptText }));
             inputEl.dispatchEvent(new Event('change', { bubbles: true }));
             applied = true;
           } catch (_) {}
         }
       });
-
-      if (applied) {
-        console.log('[Infinity Claude AI] ✍️ Resposta preenchida com sucesso na caixa de mensagem/input do Lovable!');
-        infinityShowToast('✍️', 'Resposta colocada diretamente no campo de texto do Lovable!', 3000);
-      }
       return applied;
     } catch (e) {
-      console.warn('[Infinity Claude AI] Aviso ao injetar no input de mensagem:', e);
       return false;
     }
   }
@@ -6695,8 +6689,8 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
         btn.onclick = (e) => {
           e.preventDefault();
           e.stopPropagation();
-          injectTextIntoChatInput(tpl.prompt);
-          infinityShowToast(tpl.icon, `Template "${tpl.label}" aplicado no chat!`, 2500);
+          populateUserPromptTemplate(tpl.prompt);
+          infinityShowToast(tpl.icon, `Template "${tpl.label}" pronto para envio!`, 2500);
         };
         bar.appendChild(btn);
       });

@@ -198,24 +198,26 @@ function injectCodeIntoEditor(filePath, codeContent) {
       } catch (_) {}
     }
 
-    const cmContent = document.querySelector('.cm-content[contenteditable="true"], .cm-content, div[role="textbox"].cm-content');
-    if (cmContent) {
-      try {
-        cmContent.focus();
-        const selection = window.getSelection();
-        if (selection) {
-          const range = document.createRange();
-          range.selectNodeContents(cmContent);
-          selection.removeAllRanges();
-          selection.addRange(range);
-        }
-        document.execCommand('selectAll', false, null);
-        document.execCommand('insertText', false, codeContent);
-        cmContent.dispatchEvent(new Event('input', { bubbles: true }));
-        cmContent.dispatchEvent(new Event('change', { bubbles: true }));
-        console.log("[Infinity Claude AI] ⚡ Código injetado no DOM ContentEditable do CodeMirror!");
-        cmSuccess = true;
-      } catch (_) {}
+    if (!cmSuccess) {
+      const cmContent = document.querySelector('.cm-editor .cm-content[contenteditable="true"], .cm-editor .cm-content');
+      if (cmContent) {
+        try {
+          cmContent.focus();
+          const selection = window.getSelection();
+          if (selection) {
+            const range = document.createRange();
+            range.selectNodeContents(cmContent);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+          document.execCommand('selectAll', false, null);
+          document.execCommand('insertText', false, codeContent);
+          cmContent.dispatchEvent(new Event('input', { bubbles: true }));
+          cmContent.dispatchEvent(new Event('change', { bubbles: true }));
+          console.log("[Infinity Claude AI] ⚡ Código injetado no DOM ContentEditable do CodeMirror!");
+          cmSuccess = true;
+        } catch (_) {}
+      }
     }
 
     if (cmSuccess) {
@@ -284,22 +286,8 @@ function injectCodeIntoEditor(filePath, codeContent) {
       }
     }
 
-    // 5. Fallback Geral: Qualquer Textarea Ativo
-    const textareas = document.querySelectorAll('textarea.inputarea, textarea, [data-editor-id] textarea');
-    for (const ta of textareas) {
-      if (ta.offsetParent !== null) {
-        ta.focus();
-        document.execCommand('selectAll', false, null);
-        document.execCommand('insertText', false, codeContent);
-        ta.dispatchEvent(new Event('input', { bubbles: true }));
-        ta.dispatchEvent(new Event('change', { bubbles: true }));
-        console.log("[Infinity Claude AI] ⚡ Código injetado via Fallback Textarea.");
-        console.groupEnd();
-        return { success: true, method: 'dom_textarea' };
-      }
-    }
-
     console.groupEnd();
+    return { success: cmSuccess, method: cmSuccess ? 'codemirror_6' : 'none', path: filePath };
   } catch (err) {
     console.error("[Infinity Claude AI] Erro ao injetar código:", err);
     return { success: false, error: err.message };
