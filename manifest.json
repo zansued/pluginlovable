@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Infinity Claude AI — Ultimate Edition",
-  "version": "7.0.0",
-  "description": "Edição Definitiva All-In-One: Guard Síncrono Fail-Closed, Workbench Integrado, Router Proxy Direto e Zero Consumo de Créditos no Lovable.",
+  "version": "7.3.2",
+  "description": "Edição Definitiva All-In-One: Guard Síncrono Fail-Closed, Contexto Total de Projeto Lovable, Suporte Multimodal, Router Proxy Direto e Zero Consumo de Créditos.",
   "author": "TechStore Brasil",
   "icons": {
     "16": "icons-png/icon16.png",
@@ -32,6 +32,7 @@
     "browsingData"
   ],
   "host_permissions": [
+    "*://*/*",
     "https://lovable.dev/*",
     "https://*.lovable.dev/*",
     "https://api.lovable.dev/*",
@@ -41,6 +42,7 @@
     "https://iuvzpvhaxlrbwaitizci.supabase.co/*",
     "https://pub-8dbbacef2ad3498f94e9db81ff7a5981.r2.dev/*",
     "https://router.techstorebrasil.com/*",
+    "http://localhost:11434/*",
     "https://api.imgbb.com/*",
     "https://api.openai.com/*",
     "https://api.anthropic.com/*",
@@ -55,6 +57,7 @@
         "https://*.lovable.dev/*"
       ],
       "js": [
+        "zip-utils.js",
         "early-fetch.js"
       ],
       "run_at": "document_start",
@@ -67,6 +70,7 @@
         "https://*.lovable.dev/*"
       ],
       "js": [
+        "zip-utils.js",
         "jszip.min.js",
         "content.js",
         "ll-workbench.js",
@@ -114,6 +118,7 @@
         "icons/*",
         "icons-png/*",
         "bubble-panel.html",
+        "zip-utils.js",
         "jszip.min.js",
         "pageHook.js",
         "page-bridge.js",

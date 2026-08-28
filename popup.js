@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   const DEFAULT_ROUTER_URL = "https://router.techstorebrasil.com/v1/chat/completions";
   const DEFAULT_ROUTER_KEY = "sk-c041ae378c7baa93-fao97q-732441d3";
-  const DEFAULT_MODEL = "openai/gpt-4o-mini";
+  const DEFAULT_MODEL = "infinity-master-coder";
 
   // Tab switching
   const tabBtns = document.querySelectorAll(".tab-btn");
@@ -25,6 +25,25 @@ document.addEventListener("DOMContentLoaded", () => {
   const routerStatus = document.getElementById("routerStatus");
   const deepCleanBtn = document.getElementById("deepCleanBtn");
   const cleanStatus = document.getElementById("cleanStatus");
+
+  // Busca modelos dinâmicos (incluindo Ollama local se estiver rodando)
+  if (chrome.runtime && chrome.runtime.sendMessage) {
+    chrome.runtime.sendMessage({ type: "INFINITY_GET_AVAILABLE_MODELS" }, (res) => {
+      if (res && res.success && Array.isArray(res.models) && modelSelect) {
+        const currentSelected = modelSelect.value;
+        const existingValues = new Set(Array.from(modelSelect.options).map(o => o.value));
+        res.models.forEach(m => {
+          if (!existingValues.has(m.id)) {
+            const opt = document.createElement("option");
+            opt.value = m.id;
+            opt.textContent = m.name;
+            modelSelect.appendChild(opt);
+          }
+        });
+        if (currentSelected) modelSelect.value = currentSelected;
+      }
+    });
+  }
 
   // Stats Elements
   const statTokens = document.getElementById("statTokens");
@@ -187,23 +206,57 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Deep Clean Action
-  if (deepCleanBtn) {
-    deepCleanBtn.addEventListener("click", () => {
-      deepCleanBtn.disabled = true;
-      deepCleanBtn.textContent = "Limpando...";
+  // Interface Toggles (Glow & VIP Templates)
+  const toggleGlowEffect = document.getElementById("toggleGlowEffect");
+  const toggleVipTemplates = document.getElementById("toggleVipTemplates");
 
-      if (chrome.runtime && chrome.runtime.sendMessage) {
-        chrome.runtime.sendMessage({ type: "NX_DEEP_CLEAN", origin: "https://lovable.dev" }, () => {
-          deepCleanBtn.disabled = false;
-          deepCleanBtn.textContent = "⚡ Limpeza Profunda de Cache";
-          showStatus(cleanStatus, "Cache e armazenamento limpos!");
+  if (chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get([
+      "infinity_show_glow",
+      "infinity_show_templates"
+    ], (res) => {
+      if (toggleGlowEffect) toggleGlowEffect.checked = res.infinity_show_glow !== false; // default: true
+      if (toggleVipTemplates) toggleVipTemplates.checked = res.infinity_show_templates === true; // default: false
+    });
+  }
+
+  function notifyUiSettingsChanged(glow, templates) {
+    if (chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({
+        infinity_show_glow: glow,
+        infinity_show_templates: templates
+      });
+    }
+    try {
+      localStorage.setItem("infinity_show_glow", glow ? "true" : "false");
+      localStorage.setItem("infinity_show_templates", templates ? "true" : "false");
+    } catch (_) {}
+
+    // Notifica todas as abas ativas do Lovable
+    if (chrome.tabs && chrome.tabs.query) {
+      chrome.tabs.query({ url: "*://*.lovable.dev/*" }, (tabs) => {
+        tabs.forEach((t) => {
+          if (t.id) {
+            chrome.tabs.sendMessage(t.id, {
+              type: "INFINITY_UPDATE_UI_SETTINGS",
+              showGlow: glow,
+              showTemplates: templates
+            }).catch(() => {});
+          }
         });
-      } else {
-        deepCleanBtn.disabled = false;
-        deepCleanBtn.textContent = "⚡ Limpeza Profunda de Cache";
-        showStatus(cleanStatus, "Limpeza efetuada!");
-      }
+      });
+    }
+  }
+
+  if (toggleGlowEffect) {
+    toggleGlowEffect.addEventListener("change", () => {
+      notifyUiSettingsChanged(toggleGlowEffect.checked, toggleVipTemplates ? toggleVipTemplates.checked : false);
+    });
+  }
+
+  if (toggleVipTemplates) {
+    toggleVipTemplates.addEventListener("change", () => {
+      notifyUiSettingsChanged(toggleGlowEffect ? toggleGlowEffect.checked : true, toggleVipTemplates.checked);
     });
   }
 

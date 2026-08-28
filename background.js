@@ -808,4 +808,226 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     })();
     return true;
   }
+
+  // ─── INFINITY ROUTER CHAT PIPELINE (Source Code + Multimodal + Router) ──────
+  if (msg && (msg.type === "INFINITY_ROUTER_CHAT" || msg.type === "INFINITY_CHAT_REQUEST")) {
+    (async () => {
+      const userPrompt = msg.message || msg.prompt || "";
+      const projectId = msg.projectId || "";
+      let token = msg.token || "";
+      const selectedModel = msg.model || "infinity-master-coder";
+      const isLocalOllama = selectedModel.startsWith("ollama:") || msg.provider === "ollama";
+      const images = msg.images || [];
+
+      console.log(`[Infinity Background] 🚀 Iniciando pipeline: ${selectedModel} (Local: ${isLocalOllama}, Imagens: ${images.length})`);
+
+      // 1. Tenta recuperar token de fallback do storage se não foi fornecido
+      if (!token) {
+        const stored = await chrome.storage.local.get(["lovable_token", "captured_auth_token", "ll_lovable_auth_token", "custom_router_api_key"]);
+        token = stored.lovable_token || stored.captured_auth_token || stored.ll_lovable_auth_token || "";
+      }
+
+      let sourceCodeContext = "";
+      let projectFiles = [];
+
+      // 2. Busca código-fonte real existente no projeto para dar contexto 100% fiel à IA
+      if (projectId && token) {
+        try {
+          console.log(`[Infinity Background] 📥 Baixando source-code do projeto Lovable (${projectId})...`);
+          const scRes = await fetch(`https://api.lovable.dev/projects/${projectId}/source-code`, {
+            method: "GET",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Accept": "application/json"
+            }
+          });
+          if (scRes.ok) {
+            const scData = await scRes.json();
+            projectFiles = scData.files || [];
+            const keyFiles = projectFiles.filter(f => f.name && /\.(tsx|ts|jsx|js|css|html|json|sql)$/i.test(f.name) && !f.name.includes("node_modules")).slice(0, 25);
+            if (keyFiles.length > 0) {
+              sourceCodeContext = "\n\nARQUIVOS E ESTRUTURA ATUAL DO PROJETO:\n" + keyFiles.map(f => `--- ${f.name} ---\n${String(f.content || "").slice(0, 3000)}`).join("\n\n");
+              console.log(`[Infinity Background] ✅ Contexto estruturado com ${keyFiles.length} arquivos reais do projeto.`);
+            }
+          }
+        } catch (scErr) {
+          console.warn("[Infinity Background] Aviso ao obter source-code (prosseguindo com contexto local):", scErr);
+        }
+      }
+
+      // 3. Monta system prompt técnico de alta performance
+      const systemPrompt = `Você é o Engenheiro e Arquiteto Sênior Full Stack do Lovable.dev (React 18+, Vite, Tailwind CSS, shadcn/ui, TypeScript, Lucide React, Supabase).
+O usuário solicitará uma nova funcionalidade, ajuste de UI/UX, criação de componentes ou correção de bug.
+
+DIRETRIZES TÉCNICAS ESTRITAS:
+1. SEMPRE forneça os arquivos COMPLETOS prontos para produção, sem comentários preguiçosos ou reticências (...).
+2. Utilize SEMPRE o formato de cabeçalho abaixo antes de cada bloco de código:
+
+### FILE: src/caminho/do/arquivo.tsx
+\`\`\`tsx
+// código completo aqui
+\`\`\`
+
+3. Use componentes shadcn/ui (Radix UI) e classes utilitárias do Tailwind CSS.
+4. Para banco de dados e autenticação, use a integração nativa com Supabase (\`@supabase/supabase-js\`).
+5. Mantenha os imports e tipagens TypeScript 100% corretos e sem erros de tipagem.`;
+
+      try {
+        const storedConfig = await chrome.storage.local.get(["custom_router_url", "custom_router_api_key"]);
+        let endpoint = storedConfig.custom_router_url || "https://router.techstorebrasil.com/v1/chat/completions";
+        let authHeader = `Bearer ${storedConfig.custom_router_api_key || "sk-c041ae378c7baa93-fao97q-732441d3"}`;
+        let targetModel = (selectedModel === "lovable-dual-bypass" || !selectedModel) ? "infinity-master-coder" : selectedModel;
+
+        if (isLocalOllama) {
+          endpoint = "http://localhost:11434/v1/chat/completions";
+          authHeader = "Bearer ollama";
+          targetModel = targetModel.replace(/^ollama:/, "") || "qwen3.5:9b";
+        }
+
+        console.log(`[Infinity Background] ⚡ Despachando para ${endpoint} (${targetModel})...`);
+
+        // Monta payload multimodal se houver imagens
+        const userContentPayload = [];
+        if (images.length > 0) {
+          userContentPayload.push({
+            type: "text",
+            text: userPrompt + (sourceCodeContext ? "\n\n" + sourceCodeContext : "")
+          });
+          for (const img of images) {
+            userContentPayload.push({
+              type: "image_url",
+              image_url: { url: img }
+            });
+          }
+        }
+
+        const requestMessages = [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: images.length > 0 ? userContentPayload : (userPrompt + (sourceCodeContext ? "\n\n" + sourceCodeContext : ""))
+          }
+        ];
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 180000);
+
+        let routerRes;
+        try {
+          routerRes = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": authHeader
+            },
+            body: JSON.stringify({
+              model: targetModel,
+              messages: requestMessages,
+              temperature: 0.2
+            }),
+            signal: controller.signal
+          });
+        } catch (netErr) {
+          clearTimeout(timeoutId);
+          if (netErr.name === "AbortError") {
+            throw new Error(`Tempo limite de processamento excedido (180s) em ${targetModel}.`);
+          }
+          throw new Error(`Falha de conexão com ${endpoint} (${netErr.message || 'Erro de rede'}).`);
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        const rawText = await routerRes.text();
+        if (!routerRes.ok) throw new Error(`HTTP ${routerRes.status}: ${rawText}`);
+
+        let data = {};
+        try {
+          const cleanJsonText = rawText.replace(/data:\s*\[DONE\][\s\S]*$/i, "").trim();
+          data = JSON.parse(cleanJsonText);
+        } catch (_) {
+          const match = rawText.match(/\{[\s\S]*?\}(?=\s*(?:data:|$))/);
+          if (match) {
+            try { data = JSON.parse(match[0]); } catch (_) {}
+          }
+        }
+
+        const aiContent = data.choices && data.choices[0] && data.choices[0].message
+          ? data.choices[0].message.content
+          : (data.raw || rawText.replace(/data:\s*\[DONE\][\s\S]*$/i, "").trim());
+
+        // 4. Extração ultra flexível de arquivos gerados
+        const fileBlocks = [];
+        const regexStandard = /###\s*FILE:\s*([^\n\r`]+)[\r\n]+```(?:tsx|ts|jsx|js|css|html|json|sql)?[\r\n]+([\s\S]*?)```/gi;
+        let m;
+        while ((m = regexStandard.exec(aiContent)) !== null) {
+          const path = m[1].trim().replace(/^`+|`+$/g, "");
+          const code = m[2].trim();
+          if (path && code) fileBlocks.push({ path, code, content: code });
+        }
+
+        if (fileBlocks.length === 0) {
+          const regexFallback = /```(?:tsx|ts|jsx|js|css|html|json|sql)?[\r\n]+(?:\/\/\s*([^\n\r]+\.(?:tsx|ts|jsx|js|css|html|json|sql))[\r\n]+)?([\s\S]*?)```/gi;
+          while ((m = regexFallback.exec(aiContent)) !== null) {
+            const suggestedPath = m[1] ? m[1].trim() : null;
+            const code = m[2].trim();
+            if (suggestedPath && code) {
+              fileBlocks.push({ path: suggestedPath, code, content: code });
+            }
+          }
+        }
+
+        const appliedFiles = fileBlocks.map(f => f.path);
+        console.log(`[Infinity Background] 🎉 Concluído com sucesso! ${fileBlocks.length} arquivo(s) gerados:`, appliedFiles);
+
+        sendResponse({
+          success: true,
+          ok: true,
+          model: targetModel,
+          content: aiContent,
+          fileBlocks: fileBlocks,
+          appliedFiles: appliedFiles,
+          projectFilesCount: projectFiles.length,
+          data: data
+        });
+      } catch (err) {
+        console.error("[Infinity Background] Erro no Pipeline:", err);
+        sendResponse({ success: false, ok: false, error: err.message || String(err) });
+      }
+    })();
+    return true;
+  }
+
+  // ─── GET AVAILABLE MODELS (Cloud + Ollama Local) ───────────────────────────
+  if (msg && msg.type === "INFINITY_GET_AVAILABLE_MODELS") {
+    (async () => {
+      const defaultList = [
+        { id: "infinity-master-coder", name: "🏆 Infinity Master Coder (Claude Sonnet 5 + DeepSeek v4 Pro + Kimi + Gemini)", provider: "techstore" },
+        { id: "kr/claude-sonnet-5", name: "👑 Claude Sonnet 5 (Kiro AI)", provider: "techstore" },
+        { id: "ds/deepseek-v4-pro", name: "🧠 DeepSeek v4 Pro (TechStore)", provider: "techstore" },
+        { id: "kimi/kimi-k2.7-code", name: "💻 Kimi K2.7 Code (TechStore)", provider: "techstore" },
+        { id: "gemini/gemini-3.7-flash", name: "⚡ Gemini 3.7 Flash (TechStore)", provider: "techstore" },
+        { id: "openai/o3-mini", name: "🚀 OpenAI O3-Mini (TechStore)", provider: "techstore" },
+        { id: "ds/deepseek-v4-flash", name: "⚡ DeepSeek v4 Flash", provider: "techstore" }
+      ];
+
+      try {
+        const ollamaRes = await fetch("http://localhost:11434/api/tags", { method: "GET" }).catch(() => null);
+        if (ollamaRes && ollamaRes.ok) {
+          const oData = await ollamaRes.json();
+          if (oData.models && Array.isArray(oData.models)) {
+            oData.models.forEach(m => {
+              defaultList.push({
+                id: "ollama:" + m.name,
+                name: `🏠 Ollama Local: ${m.name}`,
+                provider: "ollama"
+              });
+            });
+          }
+        }
+      } catch (_) {}
+
+      sendResponse({ success: true, ok: true, models: defaultList });
+    })();
+    return true;
+  }
 });

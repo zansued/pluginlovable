@@ -23,28 +23,36 @@
   
   function normalizeModelName(m) {
     const raw = String(m || '').trim();
-    if (!raw) return 'openai/gpt-4o-mini';
+    if (!raw) return 'infinity-master-coder';
+    if (raw.startsWith('ollama:')) return raw;
     if (raw.includes('/')) return raw;
     const map = {
+      'infinity-master-coder': 'infinity-master-coder',
+      'claude-sonnet-5': 'kr/claude-sonnet-5',
+      'deepseek-v4-pro': 'ds/deepseek-v4-pro',
+      'kimi-k2.7-code': 'kimi/kimi-k2.7-code',
+      'gemini-3.7-flash': 'gemini/gemini-3.7-flash',
+      'openai-o3-mini': 'openai/o3-mini',
       'deepseek-v4-flash': 'ds/deepseek-v4-flash',
       'deepseek-chat': 'ds/deepseek-chat',
-      'claude-3-5-sonnet': 'ag/claude-sonnet-4-6',
-      'claude-3-7-sonnet': 'ag/claude-sonnet-4-6',
-      'claude-sonnet-4-6': 'ag/claude-sonnet-4-6',
-      'claude-opus-5': 'kr/claude-opus-5',
+      'claude-3-5-sonnet': 'kr/claude-sonnet-5',
+      'claude-3-7-sonnet': 'kr/claude-sonnet-5',
       'gpt-4o': 'openai/gpt-4o',
-      'gpt-4o-mini': 'openai/gpt-4o-mini',
-      'gpt-5': 'openai/gpt-5.4'
+      'gpt-4o-mini': 'openai/gpt-4o-mini'
     };
-    return map[raw] || `ds/${raw}`;
+    return map[raw] || raw;
   }
 
-function syncStorageConfig() {
+  function syncStorageConfig() {
     try {
-      const stored = localStorage.getItem("infinity_claude_config");
+      const stored = localStorage.getItem("infinity_claude_config") || localStorage.getItem("infinity_chat_settings");
       if (stored) {
         const parsed = JSON.parse(stored);
         config = { ...config, ...parsed };
+      }
+      const curModel = localStorage.getItem("infinity_selected_model") || localStorage.getItem("selected_router_model");
+      if (curModel) {
+        config.proxy.model = curModel;
       }
     } catch (_) {}
   }
@@ -829,9 +837,94 @@ window.fetch = async function (input, init) {
   notifyNativeBridgeReady();
   setInterval(notifyNativeBridgeReady, 2000);
 
-function startUI() {
+  // ─── Hide Watermark & Badges ──────────────────────────────────────────────
+  function hideWatermarkVisual() {
+    const STYLE_ID = "infinity-hide-watermark-css";
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = `
+        #lovable-badge,
+        #lovable-badge-v2,
+        [id^="lovable-badge"],
+        a[href*="lovable.dev"][target="_blank"],
+        div[class*="watermark"] {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+        }
+      `;
+      (document.head || document.documentElement).appendChild(style);
+    }
+  }
+
+  // ─── Auto-Healer: Preview Error Handler ────────────────────────────────────
+  function setupPreviewErrorHandler() {
+    window.addEventListener("message", function (event) {
+      if (!event.data) return;
+      if (event.data.type === "sandbox:error" || event.data.type === "preview:error" || (typeof event.data === "string" && event.data.includes("Uncaught"))) {
+        const errMsg = event.data.error || event.data.message || String(event.data);
+        console.warn("[Infinity Auto-Healer] ⚠️ Erro no Preview Detectado:", errMsg);
+        
+        const chatTextarea = document.querySelector("textarea");
+        if (chatTextarea) {
+          const autoFixPrompt = `Detectei um erro em tempo de execução no preview do aplicativo:\n\`\`\`\n${errMsg}\n\`\`\`\nPor favor, analise a causa raiz no código TypeScript/React e forneça a correção completa dos arquivos afetados.`;
+          chatTextarea.value = autoFixPrompt;
+          chatTextarea.focus();
+          chatTextarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+          showGuardToast("🛡️ Auto-Healer", "Prompt de correção do erro preparado no chat!", false);
+        }
+      }
+    });
+  }
+
+  // ─── Credit Leak & Protection Monitor ─────────────────────────────────────
+  (function creditMonitor() {
+    if (!document.getElementById("inf-credit-monitor-css")) {
+      const s = document.createElement("style");
+      s.id = "inf-credit-monitor-css";
+      s.textContent = `@keyframes inf-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.5}}`;
+      (document.head || document.documentElement).appendChild(s);
+    }
+
+    function getOrCreateCreditBadge() {
+      let badge = document.getElementById("inf-credit-monitor-badge");
+      if (!badge && document.body) {
+        badge = document.createElement("div");
+        badge.id = "inf-credit-monitor-badge";
+        badge.style.cssText = [
+          "position:fixed", "bottom:18px", "right:18px", "z-index:2147483640",
+          "display:flex", "align-items:center", "gap:8px", "padding:6px 14px",
+          "background:rgba(9,13,22,0.94)", "border:1px solid rgba(16,185,129,0.4)",
+          "border-radius:9999px", "font-size:11.5px", "font-weight:700", "color:#34d399",
+          "font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif",
+          "backdrop-filter:blur(12px)", "box-shadow:0 4px 20px rgba(0,0,0,0.5),0 0 12px rgba(16,185,129,0.15)",
+          "cursor:pointer", "user-select:none"
+        ].join(";");
+        badge.title = "Infinity Claude AI — Proteção de Créditos Ativa (0 Débito)";
+        badge.innerHTML = `
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 8px #34d399;flex-shrink:0;animation:inf-pulse 1.8s infinite;"></span>
+          <span>🛡️ 0 Créditos Lovable (Bypass VIP Ativo)</span>
+        `;
+        document.body.appendChild(badge);
+      }
+      return badge;
+    }
+
+    setInterval(() => {
+      if (/\/projects\//.test(location.pathname)) {
+        getOrCreateCreditBadge();
+      }
+    }, 3000);
+  })();
+
+  function startUI() {
     injectGlowStyles();
     attachGlowToChatInput();
+    hideWatermarkVisual();
+    setupPreviewErrorHandler();
     setInterval(attachGlowToChatInput, 2000);
   }
 
@@ -841,5 +934,5 @@ function startUI() {
     startUI();
   }
 
-  console.log("[Infinity Claude AI v7.0 All-In-One] Fail-Closed Guard Active & Operational.");
+  console.log("[Infinity Claude AI v7.3.2 All-In-One] Fail-Closed Guard & Auto-Healer Active & Operational.");
 })();

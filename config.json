@@ -1,6 +1,6 @@
 {
   "extension_name": "Infinity Claude AI",
-  "version": "7.0.0",
+  "version": "7.3.2",
   "build": "all-in-one-ultimate",
   "license": {
     "tier": "VIP_LIFETIME",
@@ -12,30 +12,50 @@
     "enabled": true,
     "custom_endpoint": "https://router.techstorebrasil.com/v1/chat/completions",
     "custom_api_key": "sk-c041ae378c7baa93-fao97q-732441d3",
-    "model": "openai/gpt-4o-mini",
+    "model": "infinity-master-coder",
     "temperature": 0.2
   },
   "models": [
     {
-      "id": "deepseek-v4-flash",
-      "name": "DeepSeek V4 Flash (TechStore Router)",
+      "id": "infinity-master-coder",
+      "name": "🏆 Infinity Master Coder (Claude Sonnet 5 + DeepSeek v4 Pro + Kimi + Gemini)",
       "default": true
     },
     {
-      "id": "claude-3-7-sonnet",
-      "name": "Claude 3.7 Sonnet (Thinking)"
+      "id": "kr/claude-sonnet-5",
+      "name": "👑 Claude Sonnet 5 (Kiro AI)"
     },
     {
-      "id": "claude-3-5-sonnet",
-      "name": "Claude 3.5 Sonnet (Recomendado)"
+      "id": "ds/deepseek-v4-pro",
+      "name": "🧠 DeepSeek v4 Pro (TechStore)"
     },
     {
-      "id": "claude-3-5-haiku",
-      "name": "Claude 3.5 Haiku"
+      "id": "kimi/kimi-k2.7-code",
+      "name": "💻 Kimi K2.7 Code (TechStore)"
     },
     {
-      "id": "gpt-4o",
-      "name": "GPT-4o"
+      "id": "gemini/gemini-3.7-flash",
+      "name": "⚡ Gemini 3.7 Flash (TechStore)"
+    },
+    {
+      "id": "openai/o3-mini",
+      "name": "🚀 OpenAI O3-Mini (TechStore)"
+    },
+    {
+      "id": "ds/deepseek-v4-flash",
+      "name": "⚡ DeepSeek v4 Flash"
+    },
+    {
+      "id": "ollama:qwen3.6:27b",
+      "name": "🏠 Ollama Local: Qwen 3.6 27B"
+    },
+    {
+      "id": "ollama:qwen3.5:35b",
+      "name": "🏠 Ollama Local: Qwen 3.5 35B"
+    },
+    {
+      "id": "ollama:qwen3.5:9b",
+      "name": "🏠 Ollama Local: Qwen 3.5 9B"
     }
   ]
 }

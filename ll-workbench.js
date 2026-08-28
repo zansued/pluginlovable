@@ -242,8 +242,12 @@
         </details>
 
         <details class="ll-hub-acc">
-          <summary>2 · Automação avançada</summary>
+          <summary>2 · Automação & Ferramentas Rápidas</summary>
           <div class="ll-hub-body">
+            <div class="ll-hub-row" style="margin-bottom:8px;">
+              <button type="button" class="ll-hub-btn ll-hub-btn-primary" id="ll-wb-download-zip">📦 Baixar Projeto (ZIP)</button>
+              <button type="button" class="ll-hub-btn" id="ll-wb-hide-badges">🧹 Ocultar Selos</button>
+            </div>
             <label class="ll-hub-inline"><input type="checkbox" id="ll-wb-autosave" checked/> Auto-save do rascunho do chat (~40s)</label>
             <label class="ll-hub-inline"><input type="checkbox" id="ll-wb-preload" checked/> Pré-busca leve do fonte ao abrir</label>
             <div class="ll-hub-row">
@@ -537,6 +541,49 @@
     root.querySelector('#ll-wb-cache-clear')?.addEventListener('click', () => {
       responseCache.clear();
       wbToast('🗑', 'Cache workbench eliminado neste separador.');
+    });
+
+    root.querySelector('#ll-wb-download-zip')?.addEventListener('click', async () => {
+      const pid = detectProjectId();
+      if (!pid) return wbToast('⚠️', 'Nenhum projeto detectado na URL.');
+      wbToast('📦', 'Baixando arquivos do projeto...');
+      try {
+        const { headers } = await getAuthHeaders();
+        const scRes = await fetch(`https://api.lovable.dev/projects/${pid}/source-code`, {
+          method: 'GET',
+          headers: headers
+        });
+        if (!scRes.ok) throw new Error(`HTTP ${scRes.status}`);
+        const scData = await scRes.json();
+        const files = scData.files || [];
+        if (files.length === 0) throw new Error('Nenhum arquivo encontrado no projeto.');
+        
+        const zipUtils = window.ZipUtils || (typeof ZipUtils !== 'undefined' ? ZipUtils : null);
+        if (!zipUtils) throw new Error('Módulo ZipUtils não carregado.');
+        
+        const zipBlob = await zipUtils.createZip(files.map(f => ({ name: f.name || f.path, content: f.content || '' })));
+        zipUtils.downloadBlob(zipBlob, `${pid}.zip`);
+        wbToast('✅', `ZIP baixado com sucesso (${files.length} arquivos)!`);
+        logActivity(`Exportou ZIP do projeto (${files.length} arquivos)`);
+      } catch (err) {
+        wbToast('❌', `Erro ao exportar ZIP: ${err.message}`);
+      }
+    });
+
+    root.querySelector('#ll-wb-hide-badges')?.addEventListener('click', () => {
+      const STYLE_ID = "infinity-hide-watermark-css";
+      if (!document.getElementById(STYLE_ID)) {
+        const style = document.createElement("style");
+        style.id = STYLE_ID;
+        style.textContent = `
+          #lovable-badge, #lovable-badge-v2, [id^="lovable-badge"],
+          a[href*="lovable.dev"][target="_blank"], div[class*="watermark"] {
+            display: none !important; visibility: hidden !important; opacity: 0 !important;
+          }
+        `;
+        (document.head || document.documentElement).appendChild(style);
+      }
+      wbToast('🧹', 'Marcas d\'água ocultadas com sucesso!');
     });
 
     root.querySelector('#ll-wb-dash-refresh')?.addEventListener('click', () => refreshDashboard());

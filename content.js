@@ -5859,7 +5859,65 @@ new MutationObserver(() => {
 
 
 
-// ─── Infinity Claude AI — Window Event to Background Port Bridge (Zero CORS & Context Safe) ───
+// ─── Infinity Claude AI — Window Event to Background Bridge (Zero CORS & Context Safe) ───
+window.addEventListener("message", function (event) {
+  if (event.source !== window || !event.data) return;
+
+  if (event.data.type === "INFINITY_ROUTER_DISPATCH") {
+    const payload = event.data.payload || {};
+
+    if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.id) {
+      console.warn("[Infinity AI Bridge] ⚠️ A extensão foi recarregada. Dê F5 nesta página do Lovable para reconectar.");
+      window.postMessage({
+        type: "INFINITY_RENDER_ROUTER_RESPONSE",
+        content: "⚠️ A extensão foi recarregada no navegador. Por favor, atualize a página (F5) para reconectar.",
+        isError: true
+      }, "*");
+      return;
+    }
+
+    try {
+      chrome.runtime.sendMessage({
+        type: "INFINITY_ROUTER_CHAT",
+        message: payload.message || payload.prompt,
+        projectId: payload.projectId,
+        token: payload.token,
+        model: payload.model,
+        images: payload.images || [],
+        sessionHeaders: payload.sessionHeaders
+      }, function (response) {
+        if (chrome.runtime.lastError) {
+          console.warn("[Infinity AI Bridge] Erro de runtime:", chrome.runtime.lastError.message);
+          return;
+        }
+
+        if (response && (response.success || response.ok)) {
+          const aiContent = response.content || "";
+          const modelName = response.model || payload.model || "infinity-master-coder";
+          
+          window.postMessage({
+            type: "__INFINITY_CODE_GENERATED__",
+            text: aiContent,
+            model: modelName
+          }, "*");
+
+          if (Array.isArray(response.fileBlocks) && response.fileBlocks.length > 0) {
+            window.postMessage({
+              type: "INFINITY_EXECUTE_EDIT_CODE_IN_PAGE",
+              projectId: payload.projectId,
+              changes: response.fileBlocks
+            }, "*");
+          }
+        } else if (response && !response.success) {
+          console.warn("[Infinity AI Bridge] Erro ao processar via Router:", response.error);
+        }
+      });
+    } catch (err) {
+      console.warn("[Infinity AI Bridge] Erro ao despachar mensagem:", err);
+    }
+  }
+});
+
 window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
   const detail = event.detail;
   if (!detail || !detail.requestId) return;
@@ -5868,40 +5926,31 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
 
   if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
     window.dispatchEvent(new CustomEvent('__INFINITY_STREAM_CHUNK_' + requestId, {
-      detail: {
-        type: 'ERROR',
-        status: 0,
-        detail: 'A extensão foi recarregada. Dê F5 nesta página do Lovable para reconectar.'
-      }
+      detail: { type: 'ERROR', status: 0, detail: 'Dê F5 nesta página para reconectar a extensão.' }
     }));
     return;
   }
 
   try {
-    const port = chrome.runtime.connect({ name: 'INFINITY_ROUTER_STREAM' });
-
-    port.onMessage.addListener((msg) => {
-      window.dispatchEvent(new CustomEvent('__INFINITY_STREAM_CHUNK_' + requestId, { detail: msg }));
-      if (msg.type === 'DONE' || msg.type === 'ERROR') {
-        try { port.disconnect(); } catch (_) {}
+    chrome.runtime.sendMessage({
+      type: "INFINITY_ROUTER_CHAT",
+      message: (payload && payload.messages && payload.messages.length) ? payload.messages[payload.messages.length - 1].content : "",
+      model: payload ? payload.model : "infinity-master-coder",
+      payload: payload
+    }, (res) => {
+      if (chrome.runtime.lastError || !res || (!res.success && !res.ok)) {
+        window.dispatchEvent(new CustomEvent('__INFINITY_STREAM_CHUNK_' + requestId, {
+          detail: { type: 'ERROR', status: 0, detail: (res && res.error) || 'Erro no Router' }
+        }));
+      } else {
+        window.dispatchEvent(new CustomEvent('__INFINITY_STREAM_CHUNK_' + requestId, {
+          detail: { type: 'DONE', fullText: res.content }
+        }));
       }
-    });
-
-    port.onDisconnect.addListener(() => {
-      window.dispatchEvent(new CustomEvent('__INFINITY_STREAM_CHUNK_' + requestId, {
-        detail: { type: 'ERROR', status: 0, detail: 'A extensão foi atualizada. Dê F5 na aba do Lovable para continuar.' }
-      }));
-    });
-
-    port.postMessage({
-      type: 'START_STREAM',
-      endpoint,
-      headers,
-      payload
     });
   } catch (err) {
     window.dispatchEvent(new CustomEvent('__INFINITY_STREAM_CHUNK_' + requestId, {
-      detail: { type: 'ERROR', status: 0, detail: 'A extensão foi atualizada. Dê F5 na aba do Lovable para continuar.' }
+      detail: { type: 'ERROR', status: 0, detail: err.message }
     }));
   }
 });
@@ -6083,17 +6132,30 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
     html = html.replace(/```([a-zA-Z0-9_.-]*)\n([\s\S]*?)```/g, function(_, lang, code) {
       blockCounter++;
       const codeId = `inf-code-snippet-${Date.now()}-${blockCounter}`;
-      window[`__code_${codeId}`] = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+      const rawCode = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+      window[`__code_${codeId}`] = rawCode;
+
+      // Tenta extrair o caminho do arquivo da primeira linha
+      let extractedPath = '';
+      const firstLine = rawCode.split('\n')[0].trim();
+      if (firstLine.startsWith('//') || firstLine.startsWith('/*') || firstLine.startsWith('#')) {
+        const pathMatch = firstLine.match(/(?:src\/|components\/|pages\/|lib\/|[a-zA-Z0-9_-]+\.(?:tsx|ts|jsx|js|css|json))/i);
+        if (pathMatch) extractedPath = firstLine.replace(/^[/*#\s]+/, '').replace(/[*\/]+$/, '').trim();
+      }
+
       return `
-        <div style="margin: 12px 0; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 8px; overflow: hidden; background: #090d16;">
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: rgba(30, 41, 59, 0.7); border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 11px;">
-            <span style="color: #94a3b8; font-weight: 600; text-transform: uppercase;">${lang || 'code'}</span>
+        <div style="margin: 14px 0; border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 10px; overflow: hidden; background: #090d16; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(30, 41, 59, 0.85); border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 11.5px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:13px;">📄</span>
+              <span style="color: #38bdf8; font-weight: 700;">${extractedPath || (lang ? lang.toUpperCase() : 'CÓDIGO')}</span>
+            </div>
             <div style="display: flex; gap: 6px;">
-              <button class="infinity-bubble-btn-copy" data-id="${codeId}" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: #cbd5e1; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">📋 Copiar</button>
-              <button class="infinity-bubble-btn-inject" data-id="${codeId}" style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 600;">⚡ Injetar</button>
+              <button class="infinity-bubble-btn-copy" data-id="${codeId}" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #cbd5e1; padding: 4px 10px; border-radius: 5px; font-size: 11px; cursor: pointer; font-weight:600;">📋 Copiar</button>
+              <button class="infinity-bubble-btn-inject" data-id="${codeId}" data-path="${extractedPath || ''}" style="background: linear-gradient(135deg, #10b981, #059669); border: none; color: #fff; padding: 4px 10px; border-radius: 5px; font-size: 11px; cursor: pointer; font-weight: 700; box-shadow:0 2px 8px rgba(16,185,129,0.3);">⚡ Injetar no Editor</button>
             </div>
           </div>
-          <pre style="margin: 0; padding: 12px; overflow-x: auto; color: #38bdf8; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.5;"><code>${code}</code></pre>
+          <pre style="margin: 0; padding: 12px; overflow-x: auto; color: #e2e8f0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.5; max-height: 350px;"><code>${code}</code></pre>
         </div>
       `;
     });
@@ -6179,15 +6241,16 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
         btn.onclick = (e) => {
           e.stopPropagation();
           const id = btn.getAttribute('data-id');
+          const dataPath = btn.getAttribute('data-path');
           const code = window[`__code_${id}`];
           if (code) {
             window.postMessage({
               type: '__INFINITY_APPLY_CODE_TO_EDITOR__',
               code: code,
-              path: (blocks && blocks[0] && blocks[0].path) || 'src/components/App.tsx'
+              path: dataPath || (blocks && blocks[0] && blocks[0].path) || ''
             }, '*');
             btn.innerText = '⚡ Injetado!';
-            setTimeout(() => { btn.innerText = '⚡ Injetar'; }, 2000);
+            setTimeout(() => { btn.innerText = '⚡ Injetar no Editor'; }, 2000);
           }
         };
       });
@@ -6435,16 +6498,33 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
     // 2. Renderizar na linha do tempo do chat com visual Infinity Claude AI
     injectMessageIntoChatDOM(text, model, blocks);
 
-    // 3. DIRECT GITHUB SYNC (Sincronização Direta com o Repositório do Projeto)
+    // 3. Renderizar Dashboard Flutuante de Inspeção de Arquivos (com botões de injeção e cópia)
     if (blocks && blocks.length > 0) {
-      const savedRepo = localStorage.getItem("infinity_github_repo") || "https://github.com/zansued/cozy-companion-hub-59.git";
+      renderInfinityInspectorDashboard(blocks, text, model);
+      infinityShowToast('⚡', `${blocks.length} arquivo(s) gerados! Injetando no editor...`, 4000);
+    }
+
+    // 4. DIRECT GITHUB SYNC (Sincronização Dinâmica com o Repositório do Projeto)
+    if (blocks && blocks.length > 0) {
+      let targetRepo = localStorage.getItem("infinity_github_repo") || "";
+      if (!targetRepo) {
+        const ghLinks = document.querySelectorAll('a[href*="github.com/"]');
+        for (const a of ghLinks) {
+          const m = (a.href || '').match(/github\.com\/([^\/]+\/[^\/\?#]+)/i);
+          if (m && !m[1].includes('lovable') && !m[1].includes('techstore')) {
+            targetRepo = `https://github.com/${m[1].replace(/\.git$/, '')}.git`;
+            break;
+          }
+        }
+      }
+
       const savedToken = localStorage.getItem("infinity_github_token") || "";
 
-      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      if (targetRepo && savedToken && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
         chrome.runtime.sendMessage({
           type: 'INFINITY_GITHUB_SYNC_FILES',
           files: blocks,
-          repoUrl: savedRepo,
+          repoUrl: targetRepo,
           githubToken: savedToken
         }, (res) => {
           if (res && res.ok) {
@@ -6455,17 +6535,23 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
         });
       }
 
-      // 4. AUTO-INJECT DIRETO no CodeMirror local
-      console.log(`[Infinity Claude AI] ⚡ Auto-Inject ativado: Injetando ${blocks.length} arquivo(s) no editor local...`);
-      blocks.forEach((b, idx) => {
-        setTimeout(() => {
-          window.postMessage({
-            type: '__INFINITY_APPLY_CODE_TO_EDITOR__',
-            code: b.code,
-            path: b.path
-          }, '*');
-        }, idx * 300);
-      });
+      // 5. INJEÇÃO CONTROLADA: Copia o código principal e disponibiliza botões de 1 clique
+      if (blocks.length === 1) {
+        console.log(`[Infinity Claude AI] ⚡ Injetando código de ${blocks[0].path} no editor...`);
+        window.postMessage({
+          type: '__INFINITY_APPLY_CODE_TO_EDITOR__',
+          code: blocks[0].code,
+          path: blocks[0].path
+        }, '*');
+      } else if (blocks.length > 1) {
+        console.log(`[Infinity Claude AI] 📦 ${blocks.length} arquivos gerados. Disponíveis para injeção individual no chat e no painel Inspector.`);
+        // Copia o primeiro arquivo para o clipboard por padrão
+        window.postMessage({
+          type: '__INFINITY_APPLY_CODE_TO_EDITOR__',
+          code: blocks[0].code,
+          path: blocks[0].path
+        }, '*');
+      }
     }
   });
 
@@ -6667,8 +6753,17 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
 
   function renderInfinityQuickToolbar() {
     try {
+      const showTemplates = localStorage.getItem("infinity_show_templates") === "true";
+      const existingBar = document.getElementById('infinity-vip-quickbar');
+
+      // Se desativado, remove do DOM imediatamente para manter o visual limpo apenas com Glow
+      if (!showTemplates) {
+        if (existingBar) existingBar.remove();
+        return;
+      }
+
       const composer = document.querySelector('form, div:has(> textarea), div:has(> [contenteditable]), aside, [data-panel]');
-      if (!composer || document.getElementById('infinity-vip-quickbar')) return;
+      if (!composer || existingBar) return;
 
       const bar = document.createElement('div');
       bar.id = 'infinity-vip-quickbar';
@@ -6756,6 +6851,44 @@ window.addEventListener('__INFINITY_DISPATCH_ROUTER__', (event) => {
         targetInput.parentElement.insertAdjacentElement('beforebegin', bar);
       }
     } catch (_) {}
+  }
+
+  // Listener para atualização de opções de UI em tempo real
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg && msg.type === 'INFINITY_UPDATE_UI_SETTINGS') {
+        try {
+          if (msg.showTemplates !== undefined) {
+            localStorage.setItem('infinity_show_templates', msg.showTemplates ? 'true' : 'false');
+            const bar = document.getElementById('infinity-vip-quickbar');
+            if (!msg.showTemplates && bar) bar.remove();
+            else if (msg.showTemplates) renderInfinityQuickToolbar();
+          }
+          if (msg.showGlow !== undefined) {
+            localStorage.setItem('infinity_show_glow', msg.showGlow ? 'true' : 'false');
+            const glowStyles = document.getElementById('infinity-glow-styles');
+            if (!msg.showGlow && glowStyles) glowStyles.disabled = true;
+            else if (glowStyles) glowStyles.disabled = false;
+          }
+        } catch (_) {}
+      }
+    });
+  }
+
+  // Sincroniza do storage local na inicialização
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(['infinity_show_templates', 'infinity_show_glow'], (res) => {
+      if (res) {
+        try {
+          if (res.infinity_show_templates !== undefined) {
+            localStorage.setItem('infinity_show_templates', res.infinity_show_templates ? 'true' : 'false');
+          }
+          if (res.infinity_show_glow !== undefined) {
+            localStorage.setItem('infinity_show_glow', res.infinity_show_glow ? 'true' : 'false');
+          }
+        } catch (_) {}
+      }
+    });
   }
 
   setInterval(renderInfinityQuickToolbar, 2000);

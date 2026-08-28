@@ -117,62 +117,19 @@
     }
   });
 
-  // ─── Direct Monaco Editor Code Injector ─────────────────────────────────────
-  function injectCodeIntoEditor(filePath, codeContent) {
-    try {
-      if (!codeContent) return { success: false, error: 'Código vazio' };
-
-      // 1. Monaco Editor Models
-      if (window.monaco && window.monaco.editor) {
-        const models = window.monaco.editor.getModels();
-        if (models && models.length > 0) {
-          let targetModel = null;
-          if (filePath) {
-            const cleanPath = filePath.replace(/^[./\\]+/, '').toLowerCase();
-            targetModel = models.find(m => m.uri && m.uri.path && m.uri.path.toLowerCase().includes(cleanPath));
-          }
-          if (!targetModel) {
-            const editors = window.monaco.editor.getEditors();
-            if (editors && editors.length > 0) {
-              targetModel = editors[0].getModel();
-            } else {
-              targetModel = models[0];
-            }
-          }
-          if (targetModel) {
-            targetModel.setValue(codeContent);
-            return { success: true, method: 'monaco_model', path: targetModel.uri?.path || filePath };
-          }
-        }
-      }
-
-      // 2. DOM Textarea Fallback
-      const textareas = document.querySelectorAll('.monaco-editor textarea, [data-editor-id] textarea, textarea.inputarea');
-      for (const ta of textareas) {
-        if (ta.offsetParent !== null) {
-          ta.focus();
-          document.execCommand('selectAll', false, null);
-          document.execCommand('insertText', false, codeContent);
-          ta.dispatchEvent(new Event('input', { bubbles: true }));
-          ta.dispatchEvent(new Event('change', { bubbles: true }));
-          return { success: true, method: 'dom_textarea' };
-        }
-      }
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-    return { success: false, error: 'Editor não encontrado' };
-  }
-
+  // ─── Unified CodeMirror 6 & Monaco Bridge ─────────────────────────────────
   window.addEventListener('message', (event) => {
-    if (event.source !== window) return;
-    if (!event.data || event.data.type !== '__INFINITY_APPLY_CODE_TO_EDITOR__') return;
-    const { path, code, requestId } = event.data;
-    const result = injectCodeIntoEditor(path, code);
-    window.postMessage({
-      type: '__INFINITY_CODE_APPLIED_RESULT__',
-      requestId,
-      result
-    }, '*');
+    if (event.source !== window || !event.data) return;
+    if (event.data.type === '__INFINITY_APPLY_CODE_TO_EDITOR__') {
+      const { path, code, requestId } = event.data;
+      if (typeof window.injectCodeIntoEditor === 'function') {
+        const result = window.injectCodeIntoEditor(path, code);
+        window.postMessage({
+          type: '__INFINITY_CODE_APPLIED_RESULT__',
+          requestId,
+          result
+        }, '*');
+      }
+    }
   });
 })();

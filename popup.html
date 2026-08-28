@@ -320,33 +320,93 @@
       border-radius: 4px;
     }
 
+    /* Switch Toggle Styling */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .toggle-row:last-child {
+      border-bottom: none;
+    }
+    .toggle-label {
+      font-size: 11px;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .toggle-sub {
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 38px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.15);
+      transition: .25s ease;
+      border-radius: 20px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .25s ease;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+    }
+    input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+
     .footer {
+      padding: 10px 16px;
+      border-top: 1px solid var(--card-border);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 11px;
+      font-size: 10px;
       color: var(--text-muted);
-      margin-top: 10px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(0, 0, 0, 0.2);
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="brand">
-      <img src="icons-png/icon48.png" alt="Icon">
-      <div>
-        <div class="brand-title">Infinity Claude AI</div>
-        <span style="font-size: 10px; color: var(--text-muted);">Edição Completa v7.1</span>
+    <div class="logo-box">
+      <div class="logo-icon">⚡</div>
+      <div class="logo-text">
+        <div class="logo-title">Infinity Claude AI</div>
+        <div class="logo-subtitle">All-In-One Enterprise v7.3.2</div>
       </div>
     </div>
-    <div class="badge">Uso Livre & Ilimitado</div>
+    <div class="badge">VIP LIFETIME</div>
   </div>
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="tab-stats">📊 Economia</button>
-    <button class="tab-btn" data-tab="tab-skills">🧠 Skills</button>
+    <button class="tab-btn active" data-tab="tab-stats">📊 Visão Geral</button>
+    <button class="tab-btn" data-tab="tab-skills">✨ Prompts</button>
     <button class="tab-btn" data-tab="tab-router">⚙️ 9Router</button>
     <button class="tab-btn" data-tab="tab-github">🐙 GitHub</button>
   </div>
@@ -389,6 +449,33 @@
       </div>
     </div>
 
+    <!-- Opções de Interface (Glow & Comandos) -->
+    <div class="card">
+      <div class="card-title">Interface & Visual</div>
+      
+      <div class="toggle-row">
+        <div class="toggle-label">
+          <span>✨ Efeito Glow Neon no Chat</span>
+          <span class="toggle-sub">Borda brilhante elegante e minimalista</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggleGlowEffect" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <div class="toggle-label">
+          <span>⚡ Barra de VIP Templates</span>
+          <span class="toggle-sub">Exibir barra de atalhos acima do input</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggleVipTemplates">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">Ações Rápidas</div>
       <button class="btn btn-secondary" id="deepCleanBtn">
@@ -416,12 +503,16 @@
       
       <label class="field-label">Modelo de IA:</label>
       <select id="modelSelect">
-        <option value="openai/gpt-4o-mini" selected>🚀 OpenAI GPT-4o Mini (Econômico & 2.1s de Resposta)</option>
-        <option value="openai/gpt-4o">⚡ OpenAI GPT-4o</option>
-        <option value="ag/claude-sonnet-4-6">🧠 Claude Sonnet 4.6 (ag/)</option>
-        <option value="ds/deepseek-v4-flash">⚡ DeepSeek V4 Flash (ds/)</option>
-        <option value="kr/claude-opus-5">👑 Claude Opus 5 (kr/)</option>
-        <option value="gemini/gemini-3.7-flash">✨ Gemini 3.7 Flash</option>
+        <option value="infinity-master-coder" selected>🏆 Infinity Master Coder (Claude Sonnet 5 + DeepSeek v4 Pro + Kimi)</option>
+        <option value="kr/claude-sonnet-5">👑 Claude Sonnet 5 (Kiro AI)</option>
+        <option value="ds/deepseek-v4-pro">🧠 DeepSeek v4 Pro (TechStore)</option>
+        <option value="kimi/kimi-k2.7-code">💻 Kimi K2.7 Code (TechStore)</option>
+        <option value="gemini/gemini-3.7-flash">⚡ Gemini 3.7 Flash (TechStore)</option>
+        <option value="openai/o3-mini">🚀 OpenAI O3-Mini (TechStore)</option>
+        <option value="ds/deepseek-v4-flash">⚡ DeepSeek V4 Flash</option>
+        <option value="ollama:qwen3.6:27b">🏠 Ollama Local: Qwen 3.6 27B</option>
+        <option value="ollama:qwen3.5:35b">🏠 Ollama Local: Qwen 3.5 35B</option>
+        <option value="ollama:qwen3.5:9b">🏠 Ollama Local: Qwen 3.5 9B</option>
       </select>
 
       <label class="field-label">Endpoint do Router:</label>
