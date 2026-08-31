@@ -99,30 +99,60 @@
     }
   });
 
-  // ─── Chat Dispatch Matcher (Strict Fail-Closed) ───────────────────────────
+  // ─── Chat Dispatch Matcher (Strict Fail-Closed — Lovable PRO Engine) ──────
+  const LOVABLE_HOST_RE = /(^|\.)(lovable\.dev|lovable\.app|lovableproject\.com|gptengineer\.app)$/i;
+  const CHAT_URL_RE = /\/(?:v\d+\/)?projects\/[^/]+\/(?:chat|chat-stream|messages)(\/|\?|$|#|-)/i;
+  const CHAT_CONTROL_RE = /\/(?:cancel|stop|abort|queue\/status|read|seen|typing|feedback|reactions?|retry-status)(\/|\?|$|#)/i;
+  const TOOLS_RESPOND_RE = /\/tools\/respond(\/|\?|$|#)/i;
+
   function isChatDispatch(url, method) {
-    const u = String(url || "").toLowerCase();
-    const m = String(method || "GET").toUpperCase();
-    if (m !== "POST") return false;
-    if (
-      u.includes("/files/") ||
-      u.includes("generate-download-url") ||
-      u.includes("generate-upload-url") ||
-      u.includes("/assets/") ||
-      u.includes("/upload") ||
-      u.includes("/queue/pause") ||
-      u.includes("/queue/resume") ||
-      u.includes("/history") ||
-      u.includes("/trajectory") ||
-      u.includes("/workspaces") ||
-      u.includes("/user/")
-    ) {
+    try {
+      const u = new URL(url, location.href);
+      const m = String(method || "GET").toUpperCase();
+      if (m !== "POST") return false;
+      if (CHAT_CONTROL_RE.test(u.pathname) || CHAT_CONTROL_RE.test(u.href)) return false;
+
+      const path = u.pathname.toLowerCase();
+      if (
+        path.includes("/files/") ||
+        path.includes("generate-download-url") ||
+        path.includes("generate-upload-url") ||
+        path.includes("/assets/") ||
+        path.includes("/upload") ||
+        path.includes("/queue/pause") ||
+        path.includes("/queue/resume") ||
+        path.includes("/history") ||
+        path.includes("/trajectory") ||
+        path.includes("/workspaces") ||
+        path.includes("/user/")
+      ) {
+        return false;
+      }
+
+      if (LOVABLE_HOST_RE.test(u.hostname)) {
+        if (CHAT_URL_RE.test(u.pathname) || CHAT_URL_RE.test(u.href) || TOOLS_RESPOND_RE.test(u.pathname) || TOOLS_RESPOND_RE.test(u.href)) {
+          return true;
+        }
+      }
+
+      if (u.hostname.includes("api.lovable.dev")) {
+        return (
+          path.endsWith("/chat") ||
+          path.includes("/chat/") ||
+          path.includes("/completions") ||
+          path.includes("/message") ||
+          CHAT_URL_RE.test(u.href) ||
+          TOOLS_RESPOND_RE.test(u.href)
+        );
+      }
+
       return false;
+    } catch (_) {
+      const raw = String(url || "").toLowerCase();
+      const m = String(method || "GET").toUpperCase();
+      if (m !== "POST") return false;
+      return (raw.includes("/chat") || raw.includes("/tools/respond")) && (raw.includes("lovable.dev") || raw.includes("lovableproject.com"));
     }
-    return (
-      u.includes("api.lovable.dev") &&
-      (u.endsWith("/chat") || u.includes("/chat?") || u.includes("/chat/") || u.includes("/completions") || u.includes("/message"))
-    );
   }
 
   // ─── Mock Permanent VIP & Queue Guard ─────────────────────────────────────
@@ -677,12 +707,16 @@
       };
     } catch (_) {}
   }
-  setTimeout(harvestLovableTokenFromIndexedDB, 1000);
+  window.fetch = async function (input, init) {
+    let urlStr = "";
+    try {
+      if (input && typeof input === 'object' && typeof input.url === 'string') urlStr = input.url;
+      else if (input && typeof input === 'object' && typeof input.href === 'string') urlStr = input.href;
+      else urlStr = String(input || "");
+    } catch (_) { urlStr = ""; }
 
-window.fetch = async function (input, init) {
-    const urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
     const options = init || {};
-    const method = options.method || (input && input.method) || "GET";
+    const method = options.method || (input && typeof input === 'object' && typeof input.method === 'string' ? input.method : "GET");
 
     const mocked = handleSupabaseAndBillingMock(urlStr);
     if (mocked) {
@@ -881,7 +915,30 @@ window.fetch = async function (input, init) {
   }
 
   // ─── Credit Leak & Protection Monitor ─────────────────────────────────────
+  const __isTopFrame = (function () {
+    try { return window.top === window.self; } catch (_) { return false; }
+  })();
+
+  // ─── Nexus PRO & Infinity Interoperability Globals ─────────────────────────
+  try {
+    window.__NEXUS_EXT_VERSION__ = "20.6.1";
+    window.__NEXUS_PRO_VERSION__ = "20.6.1";
+    window.__NEXUS_DEEPCLEAN__ = true;
+    window.__nexusNativeFetch = NATIVE_FETCH;
+    window.__nexusGuardState = function () {
+      return { coreReady: true, timedOut: false, native: !!NATIVE_FETCH };
+    };
+    window.__nexusRegisterCore = function (handler) {
+      if (typeof handler === "function") {
+        window.__nexusRegisteredCoreHandler = handler;
+        return true;
+      }
+      return false;
+    };
+  } catch (_) {}
+
   (function creditMonitor() {
+    if (!__isTopFrame) return;
     if (!document.getElementById("inf-credit-monitor-css")) {
       const s = document.createElement("style");
       s.id = "inf-credit-monitor-css";
@@ -921,6 +978,7 @@ window.fetch = async function (input, init) {
   })();
 
   function startUI() {
+    if (!__isTopFrame) return;
     injectGlowStyles();
     attachGlowToChatInput();
     hideWatermarkVisual();

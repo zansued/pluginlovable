@@ -120,10 +120,75 @@ window.LOVIFY_RATE_LIMIT_MESSAGE =
   try{
     if(!window.__LOVIFY_MAC_TOKEN_HOOK__){
       window.__LOVIFY_MAC_TOKEN_HOOK__=true;
+
+      // Publicar metadados de extensão em document.documentElement (Nexus PRO & Infinity)
+      try {
+        var manifest = (chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest() : null;
+        var version = (manifest && manifest.version) || "20.6.1";
+        var root = document.documentElement;
+        if (root && root.setAttribute) {
+          root.setAttribute("data-nexus-ext-version", version);
+          root.setAttribute("data-nexus-ext-deepclean", "1");
+          root.setAttribute("data-nexus-ext-name", (manifest && manifest.name) || "Infinity Claude AI");
+          try {
+            var iconRel = manifest && manifest.icons ? (manifest.icons["128"] || manifest.icons["48"] || manifest.icons["16"]) : "icon.png";
+            if (iconRel) root.setAttribute("data-nexus-ext-icon", chrome.runtime.getURL(iconRel));
+          } catch (_) {}
+        }
+      } catch (_) {}
+
       window.addEventListener('message', function(event){
         try{
           if(event.source!==window || !event.data) return;
           var d=event.data;
+          const TOKEN_KEY = "lovable_pro_license";
+
+          if(d.type==='NEXXUS_CHECK_TOKEN'){
+            chrome.storage.local.get([TOKEN_KEY, 'captured_auth_token', 'lovable_token'], function(result){
+              var token = result[TOKEN_KEY] || result.captured_auth_token || result.lovable_token || null;
+              try { if(!token) token = localStorage.getItem(TOKEN_KEY); } catch(_){}
+              window.postMessage({ type: "NEXXUS_TOKEN_READY", token: token }, "*");
+            });
+            return;
+          }
+
+          if(d.type==='NEXXUS_SAVE_TOKEN'){
+            if(d.token){
+              chrome.storage.local.set({ [TOKEN_KEY]: d.token, captured_auth_token: d.token, lovable_token: d.token });
+              try { localStorage.setItem(TOKEN_KEY, d.token); } catch(_){}
+            }
+            return;
+          }
+
+          if(d.source==='nexus-pro' && d.type==='NX_DEEP_CLEAN'){
+            var reqId = d.reqId || null;
+            var reply = function(ok, detail){
+              try {
+                window.postMessage({ source: "nexus-pro-ext", type: "NX_DEEP_CLEAN_DONE", reqId: reqId, ok: !!ok, detail: detail || null }, "*");
+              } catch(_){}
+            };
+            try {
+              chrome.runtime.sendMessage({ type: "NX_DEEP_CLEAN", origin: location.origin }, function(res){
+                if(chrome.runtime.lastError) return reply(false);
+                reply(res && res.ok, res && res.detail);
+              });
+            } catch(_) { reply(false); }
+            return;
+          }
+
+          if(d.source==='nexus-pro' && d.type==='NX_CLEAR_EXT_STORAGE'){
+            try {
+              chrome.storage.local.get(null, function(all){
+                var keep = {};
+                if(all && all[TOKEN_KEY]) keep[TOKEN_KEY] = all[TOKEN_KEY];
+                chrome.storage.local.clear(function(){
+                  if(keep[TOKEN_KEY]) chrome.storage.local.set(keep);
+                });
+              });
+            } catch(_){}
+            return;
+          }
+
           if(d.type==='LL_REQUEST_TOKEN'){
             window.postMessage({type:'lovableRequestToken'}, '*');
             return;
@@ -150,6 +215,7 @@ window.LOVIFY_RATE_LIMIT_MESSAGE =
               updates.captured_lovable_token=d.token;
               updates.lovable_api_token=d.token;
               updates.lovable_token=d.token;
+              updates[TOKEN_KEY]=d.token;
             }
             if(d.projectId && typeof d.projectId==='string'){
               updates.ll_project_id=d.projectId;

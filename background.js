@@ -578,13 +578,18 @@ try {
 } catch (_) {}
 
 
-// --- Deep Clean Handler (from Lovable-PRO) ---
+// --- Deep Clean Handler (Nexus PRO & Infinity Unified) ---
+const NX_ORIGINS = [
+  "https://lovable.dev",
+  "https://gptengineer.app"
+];
+
 async function removeScopedCache(origins) {
   return new Promise((resolve) => {
     try {
       if (chrome.browsingData && chrome.browsingData.remove) {
         chrome.browsingData.remove(
-          { origins: origins || ["https://lovable.dev"], since: 0 },
+          { origins: origins || NX_ORIGINS, since: 0 },
           { cacheStorage: true, indexedDB: true, serviceWorkers: true },
           () => resolve(!chrome.runtime.lastError)
         );
@@ -592,6 +597,7 @@ async function removeScopedCache(origins) {
     } catch (_) { resolve(false); }
   });
 }
+
 async function removeHttpCache() {
   return new Promise((resolve) => {
     try {
@@ -601,8 +607,9 @@ async function removeHttpCache() {
     } catch (_) { resolve(false); }
   });
 }
+
 async function handleDeepClean(extraOrigin) {
-  const origins = ["https://lovable.dev"];
+  const origins = NX_ORIGINS.slice();
   if (extraOrigin && origins.indexOf(extraOrigin) === -1) origins.push(extraOrigin);
   const scoped = await removeScopedCache(origins);
   const http = await removeHttpCache();
@@ -613,7 +620,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && (msg.type === "INFINITY_DEEP_CLEAN" || msg.type === "NX_DEEP_CLEAN")) {
     handleDeepClean(msg.origin)
       .then((res) => sendResponse({ ok: true, detail: res }))
-      .catch(() => sendResponse({ ok: false }));
+      .catch((err) => sendResponse({ ok: false, error: err && err.message }));
     return true;
   }
 });
@@ -672,49 +679,21 @@ chrome.runtime.onConnect.addListener((port) => {
               } catch (_) {}
             }
           }
-          validLines.push(line);
         }
-
-        if (validLines.length > 0) {
-          const cleanedText = validLines.join("\n") + "\n";
-          port.postMessage({ type: 'CHUNK', text: cleanedText, fullText: fullContent });
-        }
+        validLines.push(line);
       }
 
-      port.postMessage({ type: 'DONE', fullText: fullContent });
-    } catch (err) {
-      port.postMessage({ type: 'ERROR', status: 0, detail: (err && err.message) || 'Falha de conexão com o router' });
+      if (validLines.length > 0) {
+        const cleanedText = validLines.join("\n") + "\n";
+        port.postMessage({ type: 'CHUNK', text: cleanedText, fullText: fullContent });
+      }
     }
-  });
-});
 
-// ─── Infinity Deep Cache Clean (Preserva Sessão e Cookies) ────────────────────
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg && msg.type === 'INFINITY_DEEP_CLEAN') {
-    (async () => {
-      try {
-        const origins = ['https://lovable.dev', 'https://gptengineer.app'];
-        if (chrome.browsingData && chrome.browsingData.remove) {
-          await new Promise((resolve) => {
-            chrome.browsingData.remove(
-              { origins, since: 0 },
-              { cacheStorage: true, serviceWorkers: true },
-              () => resolve(!chrome.runtime.lastError)
-            );
-          });
-          await new Promise((resolve) => {
-            chrome.browsingData.remove({ since: 0 }, { cache: true }, () =>
-              resolve(!chrome.runtime.lastError)
-            );
-          });
-        }
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({ ok: false, error: e.message });
-      }
-    })();
-    return true;
+    port.postMessage({ type: 'DONE', fullText: fullContent });
+  } catch (err) {
+    port.postMessage({ type: 'ERROR', status: 0, detail: (err && err.message) || 'Falha de conexão com o router' });
   }
+});
 });
 
 // ─── Infinity GitHub Direct Sync (Direct Editor) ────────────────────────────
