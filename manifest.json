@@ -125,6 +125,8 @@
         "preview-frame-bridge.js",
         "config.json",
         "payload.js",
+        "nexus-pro-core-1.0.js",
+        "extensao-login.js",
         "icon.png"
       ],
       "matches": [

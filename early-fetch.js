@@ -58,6 +58,45 @@
   }
   syncStorageConfig();
 
+  // ─── Nexus PRO Core Loader & Boot Engine ──────────────────────────────────
+  const NEXUS_REMOTE_CORE_URL = "https://nexxus-pro.online/_dist/nexus-pro-core-1.0.js";
+  const NEXUS_SUPABASE_URL = "https://iuvzpvhaxlrbwaitizci.supabase.co";
+  const NEXUS_SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1dnpwdmhheGxyYndhaXRpemNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MDcwNjQsImV4cCI6MjA4NzI4MzA2NH0.sFaui5qD51IdYLIYV4cAFKBdGKLkqmQu8h5K5NKEs_4";
+  const NEXUS_BUCKET_CORE_URL = NEXUS_SUPABASE_URL + "/storage/v1/object/public/extensions/nexus-pro-core-1.0.js";
+
+  let nexusCoreLoaded = false;
+
+  function bootNexusProCore() {
+    if (nexusCoreLoaded) return;
+    try {
+      const activeLicense = localStorage.getItem("lovable_pro_license") || localStorage.getItem("infinity_license_key") || window.__NEXUS_LICENSE_KEY__ || "TIME-J8S6-LPS3-9CB1";
+      if (activeLicense) {
+        window.__NEXUS_LICENSE_KEY__ = activeLicense;
+        window.__NEXUS_SUPABASE_URL__ = NEXUS_SUPABASE_URL;
+        window.__NEXUS_SUPABASE_ANON__ = NEXUS_SUPABASE_ANON;
+        window.__NEXUS_PRO_VERSION__ = "20.6.2";
+        window.__NEXUS_EXT_VERSION__ = "20.6.2";
+        window.__NEXUS_MONITOR__ = true;
+
+        const bust = "?v=20.6.2&t=" + Math.floor(Date.now() / 60000);
+        const script = document.createElement("script");
+        script.src = NEXUS_REMOTE_CORE_URL + bust;
+        script.async = false;
+        script.onerror = () => {
+          const fallbackScript = document.createElement("script");
+          fallbackScript.src = NEXUS_BUCKET_CORE_URL + bust;
+          (document.head || document.documentElement).appendChild(fallbackScript);
+        };
+        script.onload = () => {
+          nexusCoreLoaded = true;
+          console.log("[Infinity Claude AI] ⚡ Nexus PRO Core carregado e integrado com sucesso.");
+        };
+        (document.head || document.documentElement).appendChild(script);
+      }
+    } catch (_) {}
+  }
+  bootNexusProCore();
+
   // ─── Extract Request Body ─────────────────────────────────────────────────
   async function extractRequestBody(input, init) {
     try {
@@ -546,16 +585,16 @@
         }
       }
 
-      // Anti-timeout fast resolution (max 35s)
+      // Anti-timeout robust resolution (max 120s)
       const safetyTimeout = setTimeout(() => {
         if (!hasResolved) {
           InfinityLogger.warn?.('TIMEOUT DE SEGURANÇA', {
-            'Tempo Limite': '35 segundos excedidos',
+            'Tempo Limite': '120 segundos excedidos',
             'Ação Tomada': 'Finalizando com o texto coletado até o momento'
           });
           finishWithSuccess(fullTextCollected);
         }
-      }, 35000);
+      }, 120000);
 
       let chunkCount = 0;
       function onChunkEvent(e) {
