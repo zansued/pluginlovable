@@ -326,36 +326,137 @@ function injectOverlayStyles() {
   s.id = 'inf-direct-editor-styles';
   s.textContent = `
     @keyframes infSpin { to { transform: rotate(360deg); } }
-    @keyframes infPulseGlow { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: 0.85; } }
-    @keyframes infPopIn { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes infPulseGlow { 0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 12px rgba(168,85,247,0.5)); } 50% { transform: scale(1.06); opacity: 0.85; filter: drop-shadow(0 0 20px rgba(168,85,247,0.8)); } }
+    @keyframes infPopIn { 0% { transform: scale(0.65); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes infShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
     #inf-de-overlay {
       position: fixed;
       z-index: 2147483645;
-      background: rgba(8, 12, 22, 0.92);
-      backdrop-filter: blur(14px);
-      border-radius: 12px;
+      background: radial-gradient(circle at center, rgba(17, 24, 39, 0.95), rgba(9, 9, 11, 0.97));
+      backdrop-filter: blur(20px);
+      border-radius: 16px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 16px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(124,58,237,0.15);
-      border: 1px solid rgba(124,58,237,0.3);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      transition: opacity 0.3s ease;
+      gap: 18px;
+      padding: 24px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.7), 0 0 30px rgba(147, 51, 234, 0.22);
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+      transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       user-select: none;
+    }
+
+    .inf-stepper-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .inf-step-node {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #71717a;
+      transition: all 0.25s ease;
+    }
+
+    .inf-step-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      color: #a1a1aa;
+      transition: all 0.25s ease;
+    }
+
+    .inf-step-node.active {
+      color: #c084fc;
+      text-shadow: 0 0 10px rgba(192, 132, 252, 0.5);
+    }
+
+    .inf-step-node.active .inf-step-dot {
+      background: #9333ea;
+      border-color: #c084fc;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(147, 51, 234, 0.7);
+      animation: infPulseGlow 1.8s infinite;
+    }
+
+    .inf-step-node.done {
+      color: #34d399;
+    }
+
+    .inf-step-node.done .inf-step-dot {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: #34d399;
+      color: #34d399;
+    }
+
+    .inf-step-line {
+      width: 16px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      transition: background 0.25s ease;
+    }
+
+    .inf-step-line.done {
+      background: linear-gradient(90deg, #9333ea, #34d399);
     }
   `;
   (document.head || document.documentElement).appendChild(s);
 }
 
 const STEP_LABELS = {
-  read: { title: "Lendo o Projeto", desc: "Mapeando a estrutura de arquivos e contexto..." },
-  plan: { title: "Gerando Alterações", desc: "Processando código em TypeScript & React..." },
-  validate: { title: "Validando Código", desc: "Verificando integridade dos imports e componentes..." },
-  apply: { title: "Aplicando Alterações", desc: "Sincronizando arquivos no projeto e atualizando..." },
-  done: { title: "Pronto!", desc: "Alterações aplicadas com sucesso (0 Créditos Lovable)!" }
+  read: { index: 1, title: "Lendo o Projeto", desc: "Mapeando a estrutura de arquivos e contexto..." },
+  plan: { index: 2, title: "Gerando Alterações", desc: "Processando código em TypeScript & React..." },
+  validate: { index: 3, title: "Validando Código", desc: "Verificando integridade dos imports e componentes..." },
+  apply: { index: 4, title: "Aplicando Alterações", desc: "Sincronizando arquivos no projeto e atualizando..." },
+  done: { index: 5, title: "Pronto!", desc: "Alterações aplicadas com sucesso (0 Créditos Lovable)!" }
 };
+
+function renderStepperHTML(currentStepKey) {
+  const currentIdx = (STEP_LABELS[currentStepKey] || STEP_LABELS.read).index;
+  const steps = [
+    { key: 'read', num: 1, name: 'Lendo' },
+    { key: 'plan', num: 2, name: 'Planejando' },
+    { key: 'validate', num: 3, name: 'Validando' },
+    { key: 'apply', num: 4, name: 'Aplicando' }
+  ];
+
+  let html = '<div class="inf-stepper-wrap">';
+  steps.forEach((s, idx) => {
+    const isDone = currentIdx > s.num;
+    const isActive = currentIdx === s.num;
+    const cls = isDone ? 'inf-step-node done' : (isActive ? 'inf-step-node active' : 'inf-step-node');
+    const symbol = isDone ? '✓' : s.num;
+
+    html += `
+      <div class="${cls}">
+        <div class="inf-step-dot">${symbol}</div>
+        <span>${s.name}</span>
+      </div>
+    `;
+
+    if (idx < steps.length - 1) {
+      const lineCls = currentIdx > s.num ? 'inf-step-line done' : 'inf-step-line';
+      html += `<div class="${lineCls}"></div>`;
+    }
+  });
+  html += '</div>';
+  return html;
+}
 
 function showDirectEditorOverlay(stepKey = 'read') {
   injectOverlayStyles();
@@ -370,18 +471,21 @@ function showDirectEditorOverlay(stepKey = 'read') {
   const isDone = stepKey === 'done';
 
   overlay.innerHTML = isDone ? `
-    <div style="width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(74,222,128,0.25),rgba(34,197,94,0.05));box-shadow:0 0 35px rgba(34,197,94,0.5);display:flex;align-items:center;justify-content:center;animation:infPopIn 0.35s cubic-bezier(0.2,0.8,0.2,1) both;">
-      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    <div style="width:84px;height:84px;border-radius:50%;background:radial-gradient(circle,rgba(52,211,153,0.3),rgba(16,185,129,0.08));box-shadow:0 0 40px rgba(52,211,153,0.55);display:flex;align-items:center;justify-content:center;animation:infPopIn 0.35s cubic-bezier(0.16,1,0.3,1) both;">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
     </div>
-    <div style="font-size:18px;font-weight:700;color:#f8fafc;">${stepInfo.title}</div>
-    <div style="font-size:13px;color:#86efac;">${stepInfo.desc}</div>
+    <div style="font-size:20px;font-weight:800;color:#f8fafc;letter-spacing:-0.4px;">${stepInfo.title}</div>
+    <div style="font-size:13px;font-weight:500;color:#86efac;text-shadow:0 0 10px rgba(134,239,172,0.3);">${stepInfo.desc}</div>
   ` : `
-    <div style="position:relative;width:64px;height:64px;display:flex;align-items:center;justify-content:center;">
-      <div style="position:absolute;inset:0;border:3px solid rgba(124,58,237,0.2);border-top-color:#a78bfa;border-radius:50%;animation:infSpin 0.9s linear infinite;"></div>
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+    <div style="position:relative;width:68px;height:68px;display:flex;align-items:center;justify-content:center;">
+      <div style="position:absolute;inset:0;border:3px solid rgba(168,85,247,0.18);border-top:3px solid #c084fc;border-right:3px solid #9333ea;border-radius:50%;animation:infSpin 0.9s cubic-bezier(0.5,0.1,0.5,0.9) infinite;"></div>
+      <div style="width:48px;height:48px;border-radius:50%;background:rgba(147,51,234,0.15);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(147,51,234,0.35);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+      </div>
     </div>
-    <div style="font-size:17px;font-weight:700;color:#f8fafc;letter-spacing:-0.2px;">Editor Direto — ${stepInfo.title}</div>
-    <div id="inf-de-status-desc" style="font-size:13px;color:#94a3b8;">${stepInfo.desc}</div>
+    <div style="font-size:18px;font-weight:800;color:#f8fafc;letter-spacing:-0.3px;">Editor Direto — ${stepInfo.title}</div>
+    <div id="inf-de-status-desc" style="font-size:13px;color:#a1a1aa;font-weight:500;">${stepInfo.desc}</div>
+    <div id="inf-de-stepper-container">${renderStepperHTML(stepKey)}</div>
   `;
 
   function trackPosition() {
@@ -424,6 +528,10 @@ function updateDirectEditorOverlayStep(stepKey) {
   const descEl = document.getElementById('inf-de-status-desc');
   if (descEl) {
     descEl.textContent = stepInfo.desc;
+  }
+  const stepperContainer = document.getElementById('inf-de-stepper-container');
+  if (stepperContainer) {
+    stepperContainer.innerHTML = renderStepperHTML(stepKey);
   }
 }
 

@@ -219,14 +219,50 @@
       if (!c) {
         c = document.createElement("div");
         c.id = "infinity-guard-container";
-        c.style.cssText = "position:fixed;top:18px;right:18px;z-index:9999999;display:flex;flex-direction:column;gap:8px;pointer-events:none;font-family:system-ui,-apple-system,sans-serif;";
+        c.style.cssText = "position:fixed;top:20px;right:20px;z-index:2147483647;display:flex;flex-direction:column;gap:10px;pointer-events:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Inter',sans-serif;";
         document.body.appendChild(c);
       }
       const toast = document.createElement("div");
-      toast.style.cssText = `background:rgba(15,23,42,0.96);border:1px solid ${isBlocked ? '#ef4444' : '#10b981'};color:#f8fafc;padding:10px 14px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,0.5);font-size:12px;pointer-events:auto;animation:llSlideIn 0.25s ease;display:flex;flex-direction:column;gap:3px;`;
-      toast.innerHTML = `<div style="font-weight:700;color:${isBlocked ? '#f87171' : '#34d399'};display:flex;align-items:center;gap:6px;"><span>${isBlocked ? '🛡️' : '⚡'}</span> ${title}</div><div style="color:#cbd5e1;">${msg}</div>`;
+      const borderColor = isBlocked ? 'rgba(239, 68, 68, 0.45)' : 'rgba(52, 211, 153, 0.45)';
+      const titleColor = isBlocked ? '#f87171' : '#34d399';
+      const glowColor = isBlocked ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)';
+
+      toast.style.cssText = `
+        background: radial-gradient(circle at top left, rgba(30, 27, 75, 0.95), rgba(15, 23, 42, 0.96));
+        backdrop-filter: blur(16px);
+        border: 1px solid ${borderColor};
+        box-shadow: 0 10px 30px rgba(0,0,0,0.6), 0 0 20px ${glowColor};
+        color: #f8fafc;
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-size: 12px;
+        pointer-events: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-width: 340px;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        transform: translateX(30px);
+        opacity: 0;
+      `;
+      toast.innerHTML = `
+        <div style="font-weight:700;color:${titleColor};display:flex;align-items:center;gap:8px;font-size:13px;letter-spacing:-0.2px;">
+          <span>${isBlocked ? '🛡️' : '⚡'}</span> ${title}
+        </div>
+        <div style="color:#cbd5e1;line-height:1.4;font-size:12px;">${msg}</div>
+      `;
       c.appendChild(toast);
-      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4000);
+
+      requestAnimationFrame(() => {
+        toast.style.transform = 'translateX(0)';
+        toast.style.opacity = '1';
+      });
+
+      setTimeout(() => {
+        toast.style.transform = 'translateX(20px)';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 4200);
     } catch (_) {}
   }
 
