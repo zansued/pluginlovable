@@ -682,31 +682,118 @@
   }
 
   // ─── Auto Token Harvester & Refresh from IndexedDB ─────────────────────────
-  async function harvestLovableTokenFromIndexedDB() {
-    try {
-      const dbReq = indexedDB.open('firebaseLocalStorageDb');
-      dbReq.onsuccess = () => {
-        const db = dbReq.result;
-        try {
-          const tx = db.transaction('firebaseLocalStorage', 'readonly');
-          const store = tx.objectStore('firebaseLocalStorage');
-          const getAllReq = store.getAll();
-          getAllReq.onsuccess = () => {
-            const records = getAllReq.result || [];
-            const authRecord = records.find((r) => r && r.fbase_key && /^firebase:authUser:/.test(r.fbase_key));
-            if (authRecord && authRecord.value) {
+  const GOOGLE_AUTH_KEY = 'AIzaSyBQNjlw9Vp4tP4VVeANzyPJnqbG2wLbYPw';
+  const KNOWLEDGE_START = '<!-- INFINITY:START -->';
+  const KNOWLEDGE_END = '<!-- INFINITY:END -->';
+  const UNIVERSAL_AGENT_KNOWLEDGE = `### DIRETRIZES DE ARQUITETURA & PADRÕES DE CÓDIGO:\n` +
+    `- Framework: Vite + React 18+ (SPA TypeScript).\n` +
+    `- Estilização: Tailwind CSS, componentes Shadcn UI e ícones Lucide React.\n` +
+    `- Roteamento: TanStack Router (@tanstack/react-router) ou React Router DOM. NUNCA importe 'next/server' ou 'next/navigation'.\n` +
+    `- Backend: Supabase JS Client (@supabase/supabase-js) via 'src/integrations/supabase/client'.\n` +
+    `- Geração de Código: Gere SEMPRE arquivos completos, limpos e sem placeholders com o comentário de caminho exato no topo.`;
+
+  async function getFreshAuthToken() {
+    return new Promise((resolve) => {
+      try {
+        const dbReq = indexedDB.open('firebaseLocalStorageDb');
+        dbReq.onsuccess = async () => {
+          try {
+            const db = dbReq.result;
+            const tx = db.transaction('firebaseLocalStorage', 'readonly');
+            const store = tx.objectStore('firebaseLocalStorage');
+            const getAllReq = store.getAll();
+            getAllReq.onsuccess = async () => {
+              const records = getAllReq.result || [];
+              const authRecord = records.find(r => r && r.fbase_key && /^firebase:authUser:/.test(r.fbase_key));
+              if (!authRecord || !authRecord.value) return resolve(null);
               const val = authRecord.value;
-              const token = val.stsTokenManager?.accessToken || val.accessToken;
-              if (token) {
-                window.__INFINITY_CAPTURED_TOKEN__ = token;
-                window.postMessage({ type: 'CAPTURED_AUTH_TOKEN', token }, '*');
+              const sts = val.stsTokenManager || {};
+              const now = Date.now();
+              if (sts.accessToken && sts.expirationTime && (sts.expirationTime - now > 60000)) {
+                return resolve(sts.accessToken);
               }
-            }
-          };
-        } catch (_) {}
-      };
+              if (sts.refreshToken) {
+                try {
+                  const resp = await NATIVE_FETCH(`https://securetoken.googleapis.com/v1/token?key=${GOOGLE_AUTH_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(sts.refreshToken)}`
+                  });
+                  if (resp.ok) {
+                    const data = await resp.json();
+                    return resolve(data.access_token || data.id_token || sts.accessToken);
+                  }
+                } catch (_) {}
+              }
+              resolve(sts.accessToken || null);
+            };
+            getAllReq.onerror = () => resolve(null);
+          } catch (_) { resolve(null); }
+        };
+        dbReq.onerror = () => resolve(null);
+      } catch (_) { resolve(null); }
+    });
+  }
+
+  async function syncWorkspaceKnowledge() {
+    try {
+      const token = await getFreshAuthToken();
+      if (!token) return;
+      
+      const projectIdMatch = location.pathname.match(/\/projects\/([a-zA-Z0-9_-]+)/i);
+      const projectId = projectIdMatch ? projectIdMatch[1] : null;
+      if (!projectId) return;
+
+      const wsRes = await NATIVE_FETCH(`https://api.lovable.dev/projects/${projectId}/details`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      }).catch(() => null);
+
+      if (!wsRes || !wsRes.ok) return;
+      const wsData = await wsRes.json().catch(() => null);
+      const workspaceId = wsData?.workspace_id || wsData?.workspaceId;
+      if (!workspaceId) return;
+
+      const knUrl = `https://api.lovable.dev/workspaces/${encodeURIComponent(workspaceId)}/knowledge`;
+      let existing = '';
+      try {
+        const getKn = await NATIVE_FETCH(knUrl, { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
+        if (getKn.ok) {
+          const json = await getKn.json();
+          existing = json?.content || json?.knowledge || '';
+        }
+      } catch (_) {}
+
+      const block = `${KNOWLEDGE_START}\n${UNIVERSAL_AGENT_KNOWLEDGE}\n${KNOWLEDGE_END}`;
+      let updatedContent = '';
+      if (existing.includes(KNOWLEDGE_START) && existing.includes(KNOWLEDGE_END)) {
+        updatedContent = existing.replace(new RegExp(`${KNOWLEDGE_START}[\\s\\S]*?${KNOWLEDGE_END}`, 'g'), block);
+      } else {
+        updatedContent = existing.trim() ? `${existing.trim()}\n\n${block}` : block;
+      }
+
+      if (updatedContent !== existing) {
+        await NATIVE_FETCH(knUrl, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: updatedContent })
+        });
+        console.log("[Infinity Claude AI] 🧠 Workspace Knowledge sincronizado com sucesso.");
+      }
     } catch (_) {}
   }
+
+  async function harvestLovableTokenFromIndexedDB() {
+    try {
+      const token = await getFreshAuthToken();
+      if (token) {
+        window.__INFINITY_CAPTURED_TOKEN__ = token;
+        window.postMessage({ type: 'CAPTURED_AUTH_TOKEN', token }, '*');
+        syncWorkspaceKnowledge();
+      }
+    } catch (_) {}
+  }
+  setTimeout(harvestLovableTokenFromIndexedDB, 1500);
+
   window.fetch = async function (input, init) {
     let urlStr = "";
     try {
@@ -724,6 +811,16 @@
     }
 
     if (isChatDispatch(urlStr, method)) {
+      if (window.__nexusRegisteredCoreHandler) {
+        try {
+          return await window.__nexusRegisteredCoreHandler(input, init, NATIVE_FETCH);
+        } catch (e) {
+          if (e && (e.name === 'AbortError' || String(e.message || '').includes('aborted'))) {
+            return new Response(JSON.stringify({ ok: false, aborted: true }), { status: 499 });
+          }
+          return handleAiChatHijack(urlStr, input, init);
+        }
+      }
       return handleAiChatHijack(urlStr, input, init);
     }
 
@@ -744,6 +841,9 @@
       }
       return resp;
     } catch (err) {
+      if (err && (err.name === 'AbortError' || String(err.message || '').includes('aborted'))) {
+        throw err;
+      }
       if (String(urlStr).includes("api.lovable.dev/projects") && String(urlStr).includes("/chat")) {
         return handleAiChatHijack(urlStr, input, init);
       }
