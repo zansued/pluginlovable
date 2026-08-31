@@ -656,9 +656,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
+        if (done) break;
 
         const text = decoder.decode(value, { stream: true });
         buffer += text;
@@ -679,21 +677,20 @@ chrome.runtime.onConnect.addListener((port) => {
               } catch (_) {}
             }
           }
+          validLines.push(line);
         }
-        validLines.push(line);
+
+        if (validLines.length > 0) {
+          const cleanedText = validLines.join("\n") + "\n";
+          port.postMessage({ type: 'CHUNK', text: cleanedText, fullText: fullContent });
+        }
       }
 
-      if (validLines.length > 0) {
-        const cleanedText = validLines.join("\n") + "\n";
-        port.postMessage({ type: 'CHUNK', text: cleanedText, fullText: fullContent });
-      }
+      port.postMessage({ type: 'DONE', fullText: fullContent });
+    } catch (err) {
+      port.postMessage({ type: 'ERROR', status: 0, detail: (err && err.message) || 'Falha de conexão com o router' });
     }
-
-    port.postMessage({ type: 'DONE', fullText: fullContent });
-  } catch (err) {
-    port.postMessage({ type: 'ERROR', status: 0, detail: (err && err.message) || 'Falha de conexão com o router' });
-  }
-});
+  });
 });
 
 // ─── Infinity GitHub Direct Sync (Direct Editor) ────────────────────────────
