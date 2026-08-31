@@ -298,16 +298,165 @@ function triggerSaveAndReload(filePath) {
   } catch (_) {}
 }
 
+// ─── Native Direct Editor Animated Overlay ──────────────────────────────────
+let overlayAnimFrame = null;
+
+function findPreviewElement() {
+  let el = document.getElementById('static-preview-panel');
+  if (el) return el;
+  el = document.querySelector('iframe[src*="lovableproject.com"]');
+  if (el) return el;
+  el = document.querySelector('div[class*="preview"], [data-panel-id="preview"]');
+  if (el) return el;
+  let largest = null, maxArea = 0;
+  document.querySelectorAll('div, section, main').forEach((node) => {
+    const rect = node.getBoundingClientRect();
+    const area = rect.width * rect.height;
+    if (rect.width > 250 && rect.height > 250 && area > maxArea) {
+      maxArea = area;
+      largest = node;
+    }
+  });
+  return largest;
+}
+
+function injectOverlayStyles() {
+  if (document.getElementById('inf-direct-editor-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'inf-direct-editor-styles';
+  s.textContent = `
+    @keyframes infSpin { to { transform: rotate(360deg); } }
+    @keyframes infPulseGlow { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: 0.85; } }
+    @keyframes infPopIn { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    #inf-de-overlay {
+      position: fixed;
+      z-index: 2147483645;
+      background: rgba(8, 12, 22, 0.92);
+      backdrop-filter: blur(14px);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(124,58,237,0.15);
+      border: 1px solid rgba(124,58,237,0.3);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      transition: opacity 0.3s ease;
+      user-select: none;
+    }
+  `;
+  (document.head || document.documentElement).appendChild(s);
+}
+
+const STEP_LABELS = {
+  read: { title: "Lendo o Projeto", desc: "Mapeando a estrutura de arquivos e contexto..." },
+  plan: { title: "Gerando Alterações", desc: "Processando código em TypeScript & React..." },
+  validate: { title: "Validando Código", desc: "Verificando integridade dos imports e componentes..." },
+  apply: { title: "Aplicando Alterações", desc: "Sincronizando arquivos no projeto e atualizando..." },
+  done: { title: "Pronto!", desc: "Alterações aplicadas com sucesso (0 Créditos Lovable)!" }
+};
+
+function showDirectEditorOverlay(stepKey = 'read') {
+  injectOverlayStyles();
+  let overlay = document.getElementById('inf-de-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'inf-de-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  const stepInfo = STEP_LABELS[stepKey] || STEP_LABELS.read;
+  const isDone = stepKey === 'done';
+
+  overlay.innerHTML = isDone ? `
+    <div style="width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(74,222,128,0.25),rgba(34,197,94,0.05));box-shadow:0 0 35px rgba(34,197,94,0.5);display:flex;align-items:center;justify-content:center;animation:infPopIn 0.35s cubic-bezier(0.2,0.8,0.2,1) both;">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    </div>
+    <div style="font-size:18px;font-weight:700;color:#f8fafc;">${stepInfo.title}</div>
+    <div style="font-size:13px;color:#86efac;">${stepInfo.desc}</div>
+  ` : `
+    <div style="position:relative;width:64px;height:64px;display:flex;align-items:center;justify-content:center;">
+      <div style="position:absolute;inset:0;border:3px solid rgba(124,58,237,0.2);border-top-color:#a78bfa;border-radius:50%;animation:infSpin 0.9s linear infinite;"></div>
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+    </div>
+    <div style="font-size:17px;font-weight:700;color:#f8fafc;letter-spacing:-0.2px;">Editor Direto — ${stepInfo.title}</div>
+    <div id="inf-de-status-desc" style="font-size:13px;color:#94a3b8;">${stepInfo.desc}</div>
+  `;
+
+  function trackPosition() {
+    const ov = document.getElementById('inf-de-overlay');
+    if (!ov) return;
+    const target = findPreviewElement();
+    if (target) {
+      const rect = target.getBoundingClientRect();
+      if (rect.width > 50 && rect.height > 50) {
+        ov.style.left = `${rect.left}px`;
+        ov.style.top = `${rect.top}px`;
+        ov.style.width = `${rect.width}px`;
+        ov.style.height = `${rect.height}px`;
+        ov.style.opacity = '1';
+      }
+    }
+    overlayAnimFrame = requestAnimationFrame(trackPosition);
+  }
+
+  try { cancelAnimationFrame(overlayAnimFrame); } catch (_) {}
+  trackPosition();
+
+  if (isDone) {
+    setTimeout(hideDirectEditorOverlay, 1400);
+  }
+}
+
+function updateDirectEditorOverlayStep(stepKey) {
+  const overlay = document.getElementById('inf-de-overlay');
+  if (!overlay) {
+    showDirectEditorOverlay(stepKey);
+    return;
+  }
+  const stepInfo = STEP_LABELS[stepKey];
+  if (!stepInfo) return;
+  if (stepKey === 'done') {
+    showDirectEditorOverlay('done');
+    return;
+  }
+  const descEl = document.getElementById('inf-de-status-desc');
+  if (descEl) {
+    descEl.textContent = stepInfo.desc;
+  }
+}
+
+function hideDirectEditorOverlay() {
+  const overlay = document.getElementById('inf-de-overlay');
+  if (!overlay) return;
+  overlay.style.opacity = '0';
+  setTimeout(() => {
+    try { cancelAnimationFrame(overlayAnimFrame); } catch (_) {}
+    overlay.remove();
+  }, 300);
+}
+
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
-  if (!event.data || event.data.type !== "__INFINITY_APPLY_CODE_TO_EDITOR__") return;
-  const { path, code, requestId } = event.data;
-  const result = injectCodeIntoEditor(path, code);
-  window.postMessage({
-    type: "__INFINITY_CODE_APPLIED_RESULT__",
-    requestId,
-    result
-  }, "*");
+  if (!event.data || !event.data.type) return;
+
+  if (event.data.type === "__INFINITY_DIRECT_EDITOR_STEP__") {
+    const { step } = event.data;
+    if (step === 'hide') hideDirectEditorOverlay();
+    else if (step === 'read' || !document.getElementById('inf-de-overlay')) showDirectEditorOverlay(step);
+    else updateDirectEditorOverlayStep(step);
+  }
+
+  if (event.data.type === "__INFINITY_APPLY_CODE_TO_EDITOR__") {
+    const { path, code, requestId } = event.data;
+    const result = injectCodeIntoEditor(path, code);
+    window.postMessage({
+      type: "__INFINITY_CODE_APPLIED_RESULT__",
+      requestId,
+      result
+    }, "*");
+  }
 });
 
 (function wrapFetch(){

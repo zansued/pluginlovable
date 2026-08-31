@@ -438,6 +438,11 @@
 
     console.groupEnd();
 
+    try {
+      window.postMessage({ type: '__INFINITY_DIRECT_EDITOR_STEP__', step: 'read' }, '*');
+      setTimeout(() => window.postMessage({ type: '__INFINITY_DIRECT_EDITOR_STEP__', step: 'plan' }, '*'), 400);
+    } catch (_) {}
+
     console.group(...InfinityLogger.badge('PASSO 2/5', '🔒 BLOQUEIO DE COBRANÇA LOVABLE', '#ef4444'));
     InfinityLogger.sub('Cobrança Lovable', 'BLOQUEADA (0 Créditos Debitados)', '#10b981');
     InfinityLogger.sub('Destino de Processamento', 'Roteamento Externo 9Router VIP', '#a78bfa');
@@ -524,6 +529,10 @@
         showGuardToast("🛡️ Infinity Claude AI", `Resposta gerada pelo <b>${targetModel}</b> em <b>${(elapsed/1000).toFixed(1)}s</b> (0 Créditos)!`, false);
 
         try {
+          window.postMessage({ type: '__INFINITY_DIRECT_EDITOR_STEP__', step: 'apply' }, '*');
+          setTimeout(() => {
+            window.postMessage({ type: '__INFINITY_DIRECT_EDITOR_STEP__', step: 'done' }, '*');
+          }, 800);
           window.postMessage({
             type: '__INFINITY_CODE_GENERATED__',
             text: finalContent,
@@ -607,6 +616,7 @@
           chunkCount++;
           if (chunkCount === 1) {
             console.log(`%c  ↳ [STREAM INICIADO] Primeiro fragmento recebido do ${targetModel}...`, 'color:#38bdf8;font-weight:bold;');
+            try { window.postMessage({ type: '__INFINITY_DIRECT_EDITOR_STEP__', step: 'validate' }, '*'); } catch (_) {}
           }
         } else if (msg.type === 'DONE') {
           clearTimeout(safetyTimeout);
