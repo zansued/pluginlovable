@@ -820,13 +820,15 @@
         updatedContent = existing.trim() ? `${existing.trim()}\n\n${block}` : block;
       }
 
-      if (updatedContent !== existing) {
-        await NATIVE_FETCH(knUrl, {
+      if (updatedContent !== existing && updatedContent.length < 15000) {
+        const putRes = await NATIVE_FETCH(knUrl, {
           method: 'PUT',
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ content: updatedContent })
-        });
-        console.log("[Infinity Claude AI] 🧠 Workspace Knowledge sincronizado com sucesso.");
+        }).catch(() => null);
+        if (putRes && putRes.ok) {
+          console.log("[Infinity Claude AI] 🧠 Workspace Knowledge sincronizado com sucesso.");
+        }
       }
     } catch (_) {}
   }
